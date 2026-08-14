@@ -1,0 +1,28 @@
+{
+  "name": "la-merced-pyk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema multiplataforma — Multiservicios La Merced PyK S.A.C.",
+  "scripts": {
+    "dev": "node startup.js",
+    "seed:admin": "npm run seed:admin --prefix backend",
+    "db:apply": "npm run db:apply --prefix backend",
+    "storage:ensure": "npm run storage:ensure --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:admin": "npm run dev --prefix admin",
+    "dev:backend": "npm run start:dev --prefix backend",
+    "dev:mobile": "cd mobile_app && flutter run -d windows",
+    "dev:mobile:chrome": "cd mobile_app && flutter run -d chrome",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:admin": "npm run build --prefix admin",
+    "build:backend": "npm run build --prefix backend",
+    "install:all": "npm install --prefix frontend && npm install --prefix admin && npm install --prefix backend",
+    "test:e2e": "npm run test:e2e --prefix e2e",
+    "test:e2e:verify": "npm run test:e2e:verify --prefix e2e",
+    "test:e2e:products": "npm run test:e2e:products --prefix e2e",
+    "test:e2e:products:ui": "npm run test:e2e:products:ui --prefix e2e"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

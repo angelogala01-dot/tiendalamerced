@@ -1,0 +1,15 @@
+{
+  "name": "la-merced-e2e",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:verify": "node scripts/verify-env.mjs",
+    "test:e2e:products": "playwright test tests/products.admin.auth.spec.ts tests/products.api.spec.ts",
+    "test:e2e:products:ui": "playwright test tests/products.admin.spec.ts --project=admin"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@supabase/supabase-js": "^2.49.8"
+  }
+}

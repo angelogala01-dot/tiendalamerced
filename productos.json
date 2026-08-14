@@ -1,0 +1,32 @@
+[
+  {
+    "sku": "CAL-001",
+    "name": "Zapatilla deportiva urbana",
+    "description": "Zapatilla cómoda para uso diario",
+    "category": "calzado",
+    "brand": "generico",
+    "sale_price": 89.9,
+    "stock_quantity": 25,
+    "min_stock": 5
+  },
+  {
+    "sku": "ROP-001",
+    "name": "Polo algodón premium",
+    "description": "Polo de algodón 100% varios colores",
+    "category": "ropa",
+    "brand": "generico",
+    "sale_price": 45.0,
+    "stock_quantity": 40,
+    "min_stock": 10
+  },
+  {
+    "sku": "ACC-001",
+    "name": "Cinturón cuero sintético",
+    "description": "Cinturón clásico unisex",
+    "category": "accesorios",
+    "brand": "generico",
+    "sale_price": 29.9,
+    "stock_quantity": 15,
+    "min_stock": 5
+  }
+]
