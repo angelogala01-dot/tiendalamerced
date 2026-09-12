@@ -3,7 +3,7 @@ builder = "NIXPACKS"
 watchPatterns = ["admin/**"]
 
 [deploy]
-startCommand = "npx next start -H 0.0.0.0 -p ${PORT:-3001}"
+startCommand = "node scripts/start.mjs"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
