@@ -6,7 +6,7 @@ import { canAccessPath, homeForRole, isStaffRole } from '@/lib/rbac';
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (path === '/login') {
+  if (path === '/login' || path === '/api/health') {
     return NextResponse.next();
   }
 
@@ -75,6 +75,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|login|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

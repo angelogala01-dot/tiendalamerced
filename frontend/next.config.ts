@@ -5,6 +5,7 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   : 'idbzttrtzmhrlwsomphz.supabase.co';
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['ws'],
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

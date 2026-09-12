@@ -11,20 +11,25 @@ function sanitizeSearch(raw?: string) {
 }
 
 export async function getHomeCatalog() {
-  const catalog = await getStoreCatalog({ limit: 8 });
-  const supabase = await createClient();
-  const { data: promotions } = await supabase
-    .from('promotions')
-    .select('id, name, description, discount_type, discount_value, start_date, end_date')
-    .eq('is_active', true)
-    .gte('end_date', new Date().toISOString())
-    .limit(3);
+  try {
+    const catalog = await getStoreCatalog({ limit: 8 });
+    const supabase = await createClient();
+    const { data: promotions } = await supabase
+      .from('promotions')
+      .select('id, name, description, discount_type, discount_value, start_date, end_date')
+      .eq('is_active', true)
+      .gte('end_date', new Date().toISOString())
+      .limit(3);
 
-  return {
-    products: catalog.data,
-    categories: catalog.categories,
-    promotions: (promotions ?? []) as Promotion[],
-  };
+    return {
+      products: catalog.data,
+      categories: catalog.categories,
+      promotions: (promotions ?? []) as Promotion[],
+    };
+  } catch (error) {
+    console.error('[catalog] home unavailable', error);
+    return { products: [], categories: [], promotions: [] as Promotion[] };
+  }
 }
 
 export async function getStoreCatalog(opts?: {
