@@ -1,0 +1,7 @@
+mobile_app/
+e2e/
+.cursor/
+.idea/
+.vscode/
+*.log
+coverage/

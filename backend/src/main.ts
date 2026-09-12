@@ -15,7 +15,15 @@ function isAllowedCorsOrigin(origin: string) {
     .map((item) => item.trim())
     .filter(Boolean);
   if (extra.includes(origin)) return true;
-  return /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'http:' && protocol !== 'https:') return false;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+    return hostname.endsWith('.up.railway.app');
+  } catch {
+    return false;
+  }
 }
 
 function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
@@ -77,9 +85,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = process.env.PORT ?? 4000;
-  await app.listen(port);
-  console.log(`API running on http://localhost:${port}`);
-  console.log(`Swagger docs: http://localhost:${port}/api/docs`);
+  const expressApp = app.getHttpAdapter().getInstance() as { set: (key: string, value: unknown) => void };
+  expressApp.set('trust proxy', 1);
+
+  const port = Number(process.env.PORT ?? 4000);
+  await app.listen(port, '0.0.0.0');
+  console.log(`API running on http://0.0.0.0:${port}`);
+  console.log(`Swagger docs: http://0.0.0.0:${port}/api/docs`);
 }
 bootstrap();
