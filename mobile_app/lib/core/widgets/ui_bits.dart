@@ -33,6 +33,37 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+class ErrorBanner extends StatelessWidget {
+  const ErrorBanner({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFFFFF1F0),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFFB42318)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(message, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Reintentar')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class StatusChip extends StatelessWidget {
   const StatusChip({super.key, required this.label, this.tone = AppColors.clay});
 

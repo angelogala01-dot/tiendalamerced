@@ -16,6 +16,8 @@ export const productFormSchema = z
     description: z.string().optional(),
     category_id: z.string().uuid('Seleccione una categoría válida'),
     brand_id: z.string().uuid('Seleccione una marca válida'),
+    supplier_id: z.union([z.string().uuid(), z.literal('')]).optional(),
+    barcode: z.string().trim().optional(),
     cost_price: z.coerce.number().min(0, 'El precio de costo no puede ser negativo'),
     sale_price: z.coerce
       .number()

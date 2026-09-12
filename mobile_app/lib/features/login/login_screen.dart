@@ -33,6 +33,83 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) setState(() => _submitting = false);
   }
 
+  Future<void> _forgotPassword() async {
+    final emailCtrl = TextEditingController(text: _email.text.trim());
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        var sending = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const Text('Recuperar contraseña'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Te enviaremos un enlace al correo del personal para crear una nueva clave.'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'Correo',
+                      prefixIcon: Icon(Icons.mail_outline),
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: const TextStyle(color: Color(0xFFB42318))),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: sending ? null : () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                FilledButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          final email = emailCtrl.text.trim();
+                          if (!email.contains('@')) {
+                            setLocal(() => error = 'Ingresa un correo válido');
+                            return;
+                          }
+                          setLocal(() {
+                            sending = true;
+                            error = null;
+                          });
+                          try {
+                            await widget.auth.requestPasswordReset(email);
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (_) {
+                            setLocal(() {
+                              sending = false;
+                              error = 'No se pudo enviar. Inténtalo de nuevo.';
+                            });
+                          }
+                        },
+                  child: sending
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Enviar enlace'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    emailCtrl.dispose();
+    if (sent == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Si el correo está registrado, ya enviamos el enlace. Revisa bandeja y spam.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = widget.auth;
@@ -65,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Herramientas del personal en el mostrador y en ruta.',
+                      'Consulta de stock y pedidos online para el equipo de ventas.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70),
                     ),
@@ -113,7 +190,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 12),
                               Text(auth.error!, style: const TextStyle(color: Color(0xFFB42318))),
                             ],
-                            const SizedBox(height: 18),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _submitting ? null : _forgotPassword,
+                                child: const Text('Olvidé mi contraseña'),
+                              ),
+                            ),
                             FilledButton(
                               onPressed: _submitting ? null : _submit,
                               child: _submitting

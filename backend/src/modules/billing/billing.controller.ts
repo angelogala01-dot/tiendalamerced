@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { SalesAuth } from '../../common/decorators/staff-auth.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { User } from '@supabase/supabase-js';
 import { BillingService } from './billing.service';
@@ -8,7 +8,7 @@ import { EmitInvoiceDto } from './dto/emit-invoice.dto';
 
 @ApiTags('billing')
 @Controller('billing')
-@StaffAuth()
+@SalesAuth()
 export class BillingController {
   constructor(private readonly service: BillingService) {}
 

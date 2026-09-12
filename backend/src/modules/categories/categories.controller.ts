@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { CatalogAuth } from '../../common/decorators/staff-auth.decorator';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
@@ -15,19 +15,19 @@ export class CategoriesController {
   }
 
   @Post()
-  @StaffAuth()
+  @CatalogAuth()
   create(@Body() dto: CreateCategoryDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
-  @StaffAuth()
+  @CatalogAuth()
   update(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @StaffAuth()
+  @CatalogAuth()
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

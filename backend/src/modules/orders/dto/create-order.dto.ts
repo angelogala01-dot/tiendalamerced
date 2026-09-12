@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -10,10 +10,15 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsPeruDocument, toDigitsOrUndefined } from '../../../shared/validators/peru';
 
 export class OrderItemDto {
   @IsUUID()
   product_id: string;
+
+  @IsOptional()
+  @IsUUID()
+  variant_id?: string;
 
   @IsInt()
   @Min(1)
@@ -30,6 +35,10 @@ export class CreateOrderDto {
   @IsOptional()
   @IsEnum(['cash', 'card', 'transfer', 'yape', 'plin'])
   payment_method?: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
+
+  @IsOptional()
+  @IsEnum(['delivery', 'pickup'])
+  fulfillment_method?: 'delivery' | 'pickup';
 
   @IsOptional()
   @IsString()
@@ -52,7 +61,8 @@ export class CreateOrderDto {
   document_type?: string;
 
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruDocument()
   document_number?: string;
 
   @IsOptional()

@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { SalesAuth } from '../../common/decorators/staff-auth.decorator';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 
 @ApiTags('customers')
 @Controller('customers')
-@StaffAuth()
+@SalesAuth()
 export class CustomersController {
   constructor(private readonly service: CustomersService) {}
 

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Bot, MessageCircle, Send, X } from 'lucide-react';
 import { PUBLIC_ROUTES } from '@/constants/routes';
 import { chatbotService } from '@/services/catalog.service';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -15,15 +16,26 @@ const SESSION_KEY = 'lamerced-ai-session';
 const WELCOME: Message = {
   role: 'assistant',
   content:
-    '¡Hola! Soy el asistente de La Merced PyK. Pregúntame por productos, horarios, pagos o el estado de un pedido.',
+    '¡Hola! Puedo buscar productos con precio y stock, seguir un pedido con el número P-… y resolver envíos, pagos u horarios.',
 };
 
 const SUGGESTIONS = [
-  { label: 'Productos', message: '¿Qué productos tienen disponibles?' },
-  { label: 'Horarios', message: '¿Cuál es el horario de atención?' },
-  { label: 'Pagos', message: '¿Qué métodos de pago aceptan?' },
+  { label: 'Zapatillas', message: '¿Tienen zapatillas disponibles?' },
   { label: 'Mi pedido', message: 'Quiero consultar el estado de un pedido' },
+  { label: 'Envíos', message: '¿Hacen delivery y cuánto cuesta el envío?' },
+  { label: 'Promos', message: '¿Hay promociones o descuentos vigentes?' },
+  { label: 'Pagos', message: '¿Qué métodos de pago aceptan?' },
 ] as const;
+
+async function optionalToken() {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token;
+  } catch {
+    return undefined;
+  }
+}
 
 function getSessionId() {
   const existing = sessionStorage.getItem(SESSION_KEY);
@@ -33,9 +45,9 @@ function getSessionId() {
   return id;
 }
 
-export function AiChatWidget() {
+export function AiChatWidget({ initialOpen = false }: { initialOpen?: boolean }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,7 +81,7 @@ export function AiChatWidget() {
     setMessages((m) => [...m, { role: 'user', content: msg }]);
     setLoading(true);
     try {
-      const res = await chatbotService.send(msg, sessionId);
+      const res = await chatbotService.send(msg, sessionId, await optionalToken());
       setMessages((m) => [...m, { role: 'assistant', content: res.reply }]);
     } catch {
       setMessages((m) => [

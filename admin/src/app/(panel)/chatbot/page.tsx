@@ -113,6 +113,13 @@ export default function AdminChatbotPage() {
     try {
       const res = await chatbotService.send(msg, sessionId);
       setMessages((m) => [...m, { role: 'assistant', content: res.reply }]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo enviar el mensaje';
+      toast.error(message);
+      setMessages((m) => [
+        ...m,
+        { role: 'assistant', content: 'No pude responder ahora. Intenta de nuevo.' },
+      ]);
     } finally {
       setIsSending(false);
     }
@@ -122,7 +129,7 @@ export default function AdminChatbotPage() {
     <div className="admin-page-enter mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Chat Bot"
-        description="Prueba el asistente con IA (OpenAI). Las FAQ activas se usan como contexto de las respuestas."
+        description="Prueba el asistente. Consulta pedidos reales, catálogo, envíos y las FAQ activas."
       />
 
       <Card className="admin-card flex flex-col border-0 overflow-hidden">

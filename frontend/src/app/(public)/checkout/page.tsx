@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -15,6 +15,7 @@ import {
   MapPin,
   Package,
   Smartphone,
+  Store,
   Truck,
 } from 'lucide-react';
 import { useCart } from '@/providers/cart-provider';
@@ -28,35 +29,84 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PUBLIC_ROUTES } from '@/constants/routes';
 import { cn } from '@/lib/utils';
-import { OrderTotalsSummary, useOrderTotals } from '@/components/public/order-totals-summary';
+import { useStoreSettings } from '@/hooks/use-store-settings';
 import { CartLineItem } from '@/components/public/cart-line-item';
 import { MockPaymentDialog } from '@/components/public/mock-payment-dialog';
+import { OrderTotalsSummary, useOrderTotals } from '@/components/public/order-totals-summary';
 import { useDocumentLookup } from '@/hooks/use-document-lookup';
+import { cartLineKey } from '@/lib/catalog/variants';
+import {
+  PERU_DEPARTMENTS,
+  PERU_DISTRICTS,
+  formatPeruLocation,
+  parsePeruLocation,
+  type PeruDepartment,
+} from '@/lib/peru-locations';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  isOptionalPeruDni,
+  restrictDigits,
+} from '@/lib/validation/peru';
 
 const PAYMENT_METHODS = [
   { value: 'card', label: 'Tarjeta', description: 'Visa, Mastercard, Amex', icon: CreditCard },
   { value: 'yape', label: 'Yape', description: 'Pago con celular', icon: Smartphone },
   { value: 'plin', label: 'Plin', description: 'Transferencia instantánea', icon: Smartphone },
   { value: 'transfer', label: 'Transferencia', description: 'Banco local', icon: Building2 },
-  { value: 'cash', label: 'Contra entrega', description: 'Paga al recibir', icon: Banknote },
+  { value: 'cash', label: 'Efectivo', description: 'Paga al recibir o recoger', icon: Banknote },
 ] as const;
 
 const STEPS = [
   { id: 1, label: 'Resumen', icon: Package },
-  { id: 2, label: 'Envío', icon: Truck },
+  { id: 2, label: 'Entrega', icon: Truck },
   { id: 3, label: 'Pago', icon: CreditCard },
 ] as const;
+
+const UNSET = '__unset__';
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { api } = useApi();
   const { user, isLoading: authLoading } = useAuth();
   const { items, total, clearCart } = useCart();
-  const { total: orderTotal } = useOrderTotals(total);
+  const { data: storeSettings } = useStoreSettings();
+  const [fulfillment, setFulfillment] = useState<'delivery' | 'pickup'>('delivery');
+  const isPickup = fulfillment === 'pickup';
+  const { total: orderTotal } = useOrderTotals(total, isPickup);
 
   const [step, setStep] = useState(1);
   const [shippingAddress, setShippingAddress] = useState('');
-  const [shippingCity, setShippingCity] = useState('');
+  const [shippingDepartment, setShippingDepartment] = useState<PeruDepartment | ''>('Lima');
+  const [shippingDistrict, setShippingDistrict] = useState('');
+  const shippingCity = formatPeruLocation(shippingDepartment, shippingDistrict);
+  const departmentItems = useMemo(
+    () => Object.fromEntries(PERU_DEPARTMENTS.map((department) => [department, department])),
+    [],
+  );
+  const districtOptions = useMemo(() => {
+    const list = shippingDepartment ? [...PERU_DISTRICTS[shippingDepartment]] : [];
+    if (shippingDistrict && !list.includes(shippingDistrict)) list.unshift(shippingDistrict);
+    return list;
+  }, [shippingDepartment, shippingDistrict]);
+  const districtItems = useMemo(
+    () => ({
+      [UNSET]: 'Selecciona distrito',
+      ...Object.fromEntries(districtOptions.map((district) => [district, district])),
+    }),
+    [districtOptions],
+  );
+
+  const applyCityValue = useCallback((value: string) => {
+    const parsed = parsePeruLocation(value);
+    setShippingDepartment((parsed.department as PeruDepartment) || 'Lima');
+    setShippingDistrict(parsed.district);
+  }, []);
   const [paymentMethod, setPaymentMethod] =
     useState<(typeof PAYMENT_METHODS)[number]['value']>('card');
   const [notes, setNotes] = useState('');
@@ -72,7 +122,7 @@ export default function CheckoutPage() {
     (data) => {
       setLegalName(data.name);
       if (data.address && !shippingAddress.trim()) setShippingAddress(data.address);
-      if (data.district && !shippingCity.trim()) setShippingCity(data.district);
+      if (data.district && !shippingDistrict.trim()) applyCityValue(data.district);
     },
   );
 
@@ -92,7 +142,7 @@ export default function CheckoutPage() {
 
         if (cancelled) return;
         if (customer?.address) setShippingAddress(customer.address);
-        if (customer?.city) setShippingCity(customer.city);
+        if (customer?.city) applyCityValue(customer.city);
       } catch {
         // Sin datos guardados — el usuario completa el formulario manualmente
       }
@@ -108,10 +158,15 @@ export default function CheckoutPage() {
       api<{ order_number: string; id: string; invoice_error?: string }>('/orders', {
         method: 'POST',
         body: JSON.stringify({
-          items: items.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+          items: items.map((i) => ({
+            product_id: i.productId,
+            variant_id: i.variantId,
+            quantity: i.quantity,
+          })),
           payment_method: paymentMethod,
-          shipping_address: shippingAddress,
-          shipping_city: shippingCity,
+          fulfillment_method: fulfillment,
+          shipping_address: isPickup ? undefined : shippingAddress,
+          shipping_city: isPickup ? undefined : shippingCity,
           notes: notes || undefined,
           voucher_type: voucherType,
           document_type: voucherType === 'factura' ? 'RUC' : 'DNI',
@@ -141,10 +196,11 @@ export default function CheckoutPage() {
 
   const canGoToShipping = items.length > 0;
   const canGoToPayment =
-    shippingAddress.trim().length > 0 &&
-    shippingCity.trim().length > 0 &&
-    (voucherType === 'boleta' ||
-      (legalName.trim().length > 2 && documentNumber.replace(/\D/g, '').length === 11));
+    (isPickup ||
+      (shippingAddress.trim().length > 0 && shippingCity.trim().length > 0)) &&
+    (voucherType === 'boleta'
+      ? isOptionalPeruDni(documentNumber)
+      : legalName.trim().length > 2 && documentNumber.replace(/\D/g, '').length === 11);
   const canPay =
     paymentMethod !== 'card' ||
     (mockCardNumber.replace(/\s/g, '').length >= 12 && mockCardName.trim().length > 2);
@@ -254,7 +310,7 @@ export default function CheckoutPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {items.map((item) => (
-                    <CartLineItem key={item.productId} item={item} variant="readonly" />
+                    <CartLineItem key={cartLineKey(item)} item={item} variant="readonly" />
                   ))}
                 </CardContent>
               </Card>
@@ -265,10 +321,66 @@ export default function CheckoutPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MapPin className="size-5 text-primary" />
-                    Datos de envío
+                    Cómo quieres recibir tu pedido
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setFulfillment('delivery')}
+                      className={cn(
+                        'flex items-start gap-3 rounded-xl border p-4 text-left transition',
+                        !isPickup
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                          : 'hover:border-primary/40',
+                      )}
+                    >
+                      <Truck className="mt-0.5 size-5 shrink-0 text-primary" />
+                      <div>
+                        <p className="font-medium">Delivery</p>
+                        <p className="text-xs text-muted-foreground">
+                          Envío a tu dirección
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFulfillment('pickup')}
+                      className={cn(
+                        'flex items-start gap-3 rounded-xl border p-4 text-left transition',
+                        isPickup
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                          : 'hover:border-primary/40',
+                      )}
+                    >
+                      <Store className="mt-0.5 size-5 shrink-0 text-primary" />
+                      <div>
+                        <p className="font-medium">Retiro en tienda</p>
+                        <p className="text-xs text-muted-foreground">Sin costo de envío</p>
+                      </div>
+                    </button>
+                  </div>
+
+                  {isPickup ? (
+                    <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm">
+                      <p className="font-medium">
+                        {storeSettings?.company_name || 'La Merced PyK'}
+                      </p>
+                      <p className="mt-1 text-muted-foreground">
+                        {storeSettings?.pickup_address || 'Tienda La Merced PyK'}
+                      </p>
+                      {storeSettings?.company_phone ? (
+                        <p className="mt-1 text-muted-foreground">
+                          Tel. {storeSettings.company_phone}
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Te avisaremos cuando el pedido esté listo para recoger.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
                   <div className="space-y-2">
                     <Label htmlFor="address">Dirección de envío</Label>
                     <Input
@@ -279,23 +391,78 @@ export default function CheckoutPage() {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="city">Ciudad / Distrito</Label>
-                    <Input
-                      id="city"
-                      value={shippingCity}
-                      onChange={(e) => setShippingCity(e.target.value)}
-                      placeholder="Lima, San Isidro"
-                      required
-                    />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Departamento</Label>
+                      <Select
+                        value={shippingDepartment || UNSET}
+                        items={departmentItems}
+                        onValueChange={(value) => {
+                          if (!value || value === UNSET) return;
+                          const next = value as PeruDepartment;
+                          setShippingDepartment(next);
+                          setShippingDistrict((current) =>
+                            PERU_DISTRICTS[next].includes(current) ? current : '',
+                          );
+                        }}
+                      >
+                        <SelectTrigger id="department" className="h-9 w-full">
+                          <SelectValue placeholder="Selecciona departamento">
+                            {shippingDepartment || 'Selecciona departamento'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERU_DEPARTMENTS.map((department) => (
+                            <SelectItem key={department} value={department}>
+                              {department}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="city">Distrito / ciudad</Label>
+                      <Select
+                        value={shippingDistrict || UNSET}
+                        items={districtItems}
+                        onValueChange={(value) => {
+                          if (!value || value === UNSET) {
+                            setShippingDistrict('');
+                            return;
+                          }
+                          setShippingDistrict(value);
+                        }}
+                        disabled={!shippingDepartment}
+                      >
+                        <SelectTrigger id="city" className="h-9 w-full">
+                          <SelectValue placeholder="Selecciona distrito">
+                            {shippingDistrict || 'Selecciona distrito'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={UNSET}>Selecciona distrito</SelectItem>
+                          {districtOptions.map((district) => (
+                            <SelectItem key={district} value={district}>
+                              {district}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                    </>
+                  )}
                   <div className="space-y-2">
-                    <Label htmlFor="notes">Notas para el repartidor (opcional)</Label>
+                    <Label htmlFor="notes">
+                      {isPickup ? 'Notas para la tienda (opcional)' : 'Notas para el repartidor (opcional)'}
+                    </Label>
                     <Input
                       id="notes"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Referencia, horario preferido…"
+                      placeholder={
+                        isPickup ? 'Horario preferido para recoger…' : 'Referencia, horario preferido…'
+                      }
                     />
                   </div>
                   <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-4">
@@ -343,9 +510,10 @@ export default function CheckoutPage() {
                           <Input
                             id="ruc"
                             value={documentNumber}
-                            onChange={(e) => setDocumentNumber(e.target.value)}
+                            onChange={(e) => setDocumentNumber(restrictDigits(e.target.value, 11))}
                             placeholder="20XXXXXXXXX"
                             inputMode="numeric"
+                            maxLength={11}
                             required
                           />
                         </div>
@@ -367,9 +535,10 @@ export default function CheckoutPage() {
                           <Input
                             id="dni"
                             value={documentNumber}
-                            onChange={(e) => setDocumentNumber(e.target.value)}
+                            onChange={(e) => setDocumentNumber(restrictDigits(e.target.value, 8))}
                             placeholder="12345678"
                             inputMode="numeric"
+                            maxLength={8}
                           />
                         </div>
                         {documentNumber.replace(/\D/g, '').length === 8 ? (
@@ -532,7 +701,7 @@ export default function CheckoutPage() {
                 <div className="flex -space-x-2">
                   {items.slice(0, 4).map((item) => (
                     <div
-                      key={item.productId}
+                      key={cartLineKey(item)}
                       className="relative size-12 overflow-hidden rounded-lg border-2 border-background bg-muted shadow-sm"
                     >
                       {item.image ? (
@@ -559,9 +728,13 @@ export default function CheckoutPage() {
 
                 <ul className="max-h-40 space-y-2 overflow-y-auto text-sm">
                   {items.map((item) => (
-                    <li key={item.productId} className="flex justify-between gap-2">
+                    <li key={cartLineKey(item)} className="flex justify-between gap-2">
                       <span className="truncate text-muted-foreground">
-                        {item.name} × {item.quantity}
+                        {item.name}
+                        {item.size || item.color
+                          ? ` (${[item.size ? `Talla ${item.size}` : null, item.color].filter(Boolean).join(' · ')})`
+                          : ''}{' '}
+                        × {item.quantity}
                       </span>
                       <span className="shrink-0 tabular-nums font-medium">
                         S/ {(item.price * item.quantity).toFixed(2)}
@@ -570,7 +743,7 @@ export default function CheckoutPage() {
                   ))}
                 </ul>
 
-                <OrderTotalsSummary subtotal={total} />
+                <OrderTotalsSummary subtotal={total} pickup={isPickup} />
               </CardContent>
             </Card>
           </div>

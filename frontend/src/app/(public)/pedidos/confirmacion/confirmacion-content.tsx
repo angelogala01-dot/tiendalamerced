@@ -105,8 +105,8 @@ export function ConfirmacionContent() {
         <h1 className="text-3xl font-bold">¡Compra exitosa!</h1>
         <p className="mt-2 text-muted-foreground">
           {invoice?.pdf_url
-            ? 'Tu comprobante electrónico de Nubefact ya está listo.'
-            : 'Tu pedido fue registrado. Estamos generando la boleta en Nubefact.'}
+            ? 'Tu comprobante electrónico de Nubefact ya está listo. También te enviamos un correo con el seguimiento.'
+            : 'Tu pedido fue registrado. Te enviamos un correo con el número y el enlace de seguimiento. Estamos generando la boleta en Nubefact.'}
         </p>
       </div>
 

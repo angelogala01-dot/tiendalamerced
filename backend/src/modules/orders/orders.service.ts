@@ -17,6 +17,7 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { BillingService } from '../billing/billing.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
 import { DeliverOrderDto } from './dto/deliver-order.dto';
 
 @Injectable()
@@ -29,6 +30,7 @@ export class OrdersService {
     private readonly promotionsService: PromotionsService,
     private readonly billingService: BillingService,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   async findAll(status?: string) {
@@ -184,26 +186,57 @@ export class OrdersService {
   }
 
   async create(dto: CreateOrderDto, userId: string) {
-    const productIds = dto.items.map((i) => i.product_id);
+    const productIds = [...new Set(dto.items.map((i) => i.product_id))];
     const { data: products, error: productsError } = await this.supabase
       .from('products')
-      .select('id, name, sku, sale_price, stock_quantity, min_stock, is_active')
+      .select(
+        'id, name, sku, sale_price, stock_quantity, min_stock, is_active, variants:product_variants(id, size, color, stock_quantity, is_active)',
+      )
       .in('id', productIds);
 
     if (productsError) throw productsError;
-    if (!products?.length || products.length !== dto.items.length) {
+    if (!products?.length || products.length !== productIds.length) {
       throw new BadRequestException('Uno o más productos no existen');
     }
 
-    for (const item of dto.items) {
-      const product = products.find((p) => p.id === item.product_id)!;
+    type ProductRow = (typeof products)[number] & {
+      variants?: Array<{
+        id: string;
+        size?: string | null;
+        color?: string | null;
+        stock_quantity: number;
+        is_active?: boolean;
+      }>;
+    };
+
+    const resolved = dto.items.map((item) => {
+      const product = products.find((p) => p.id === item.product_id) as ProductRow | undefined;
+      if (!product) throw new BadRequestException('Uno o más productos no existen');
       if (!product.is_active) {
         throw new BadRequestException(`Producto inactivo: ${product.name}`);
+      }
+      const variants = (product.variants ?? []).filter((variant) => variant.is_active !== false);
+      if (variants.length) {
+        if (!item.variant_id) {
+          throw new BadRequestException(`Elige talla o color para ${product.name}`);
+        }
+        const variant = variants.find((row) => row.id === item.variant_id);
+        if (!variant) {
+          throw new BadRequestException(`La talla/color no existe en ${product.name}`);
+        }
+        if (variant.stock_quantity < item.quantity) {
+          throw new BadRequestException(`Stock insuficiente: ${product.name}`);
+        }
+        return { item, product, variant };
+      }
+      if (item.variant_id) {
+        throw new BadRequestException(`${product.name} no tiene variantes`);
       }
       if (product.stock_quantity < item.quantity) {
         throw new BadRequestException(`Stock insuficiente: ${product.name}`);
       }
-    }
+      return { item, product, variant: null };
+    });
 
     let customerId: string;
     const { data: existingCustomer } = await this.supabase
@@ -221,8 +254,12 @@ export class OrdersService {
             ...(dto.legal_name ? { full_name: dto.legal_name } : {}),
             ...(dto.document_type ? { document_type: dto.document_type } : {}),
             ...(dto.document_number ? { document_number: dto.document_number } : {}),
-            ...(dto.shipping_address ? { address: dto.shipping_address } : {}),
-            ...(dto.shipping_city ? { city: dto.shipping_city } : {}),
+            ...(dto.fulfillment_method !== 'pickup' && dto.shipping_address
+              ? { address: dto.shipping_address }
+              : {}),
+            ...(dto.fulfillment_method !== 'pickup' && dto.shipping_city
+              ? { city: dto.shipping_city }
+              : {}),
           })
           .eq('id', customerId);
       }
@@ -242,8 +279,8 @@ export class OrdersService {
           phone: profile?.phone,
           document_type: dto.document_type || (dto.voucher_type === 'factura' ? 'RUC' : 'DNI'),
           document_number: dto.document_number,
-          address: dto.shipping_address,
-          city: dto.shipping_city,
+          address: dto.fulfillment_method === 'pickup' ? undefined : dto.shipping_address,
+          city: dto.fulfillment_method === 'pickup' ? undefined : dto.shipping_city,
         })
         .select('id')
         .single();
@@ -252,11 +289,13 @@ export class OrdersService {
       customerId = newCustomer.id;
     }
 
-    const orderItems = dto.items.map((item) => {
-      const product = products.find((p) => p.id === item.product_id)!;
+    const orderItems = resolved.map(({ item, product, variant }) => {
       const unitPrice = Number(product.sale_price);
       return {
         product_id: item.product_id,
+        variant_id: variant?.id ?? null,
+        size: variant?.size ?? null,
+        color: variant?.color ?? null,
         quantity: item.quantity,
         unit_price: unitPrice,
         subtotal: unitPrice * item.quantity,
@@ -272,10 +311,12 @@ export class OrdersService {
     }
 
     const storeSettings = await this.settingsService.getStoreSettings();
+    const isPickup = dto.fulfillment_method === 'pickup';
     const { shipping_cost: shippingCost, total } = calculateOrderTotals(
       subtotal,
       storeSettings,
       discount,
+      isPickup,
     );
 
     const { data: order, error: orderError } = await this.supabase
@@ -289,8 +330,8 @@ export class OrdersService {
         discount,
         total,
         payment_method: dto.payment_method ?? 'transfer',
-        shipping_address: dto.shipping_address,
-        shipping_city: dto.shipping_city,
+        shipping_address: isPickup ? storeSettings.pickup_address : dto.shipping_address,
+        shipping_city: isPickup ? 'Retiro en tienda' : dto.shipping_city,
         notes: dto.notes,
       })
       .select('id, order_number')
@@ -310,8 +351,36 @@ export class OrdersService {
     const { error: itemsError } = await this.supabase.from('order_items').insert(itemsWithOrder);
     if (itemsError) throw itemsError;
 
-    for (const item of dto.items) {
-      const product = products.find((p) => p.id === item.product_id)!;
+    for (const { item, product, variant } of resolved) {
+      if (variant) {
+        const stockBefore = variant.stock_quantity;
+        const stockAfter = stockBefore - item.quantity;
+        await this.supabase
+          .from('product_variants')
+          .update({ stock_quantity: stockAfter })
+          .eq('id', variant.id);
+        await this.supabase.from('inventory_movements').insert({
+          product_id: item.product_id,
+          variant_id: variant.id,
+          movement_type: 'sale',
+          quantity: item.quantity,
+          stock_before: stockBefore,
+          stock_after: stockAfter,
+          reference_type: 'order',
+          reference_id: order.id,
+        });
+        if (stockAfter <= Number(product.min_stock ?? 0) && stockBefore > Number(product.min_stock ?? 0)) {
+          await this.notifications.notifyLowStock({
+            id: product.id,
+            name: product.name,
+            sku: product.sku,
+            stock_quantity: stockAfter,
+            min_stock: Number(product.min_stock ?? 0),
+          });
+        }
+        continue;
+      }
+
       const stockBefore = product.stock_quantity;
       const stockAfter = stockBefore - item.quantity;
 
@@ -371,7 +440,11 @@ export class OrdersService {
         .single());
     }
 
-    if (fetchError) throw fetchError;
+    if (fetchError || !fullOrder) {
+      throw fetchError ?? new BadRequestException('No se pudo cargar el pedido');
+    }
+
+    await this.sendOrderPlacedEmail(customerId, fullOrder);
 
     const voucherType = dto.voucher_type ?? 'boleta';
     try {
@@ -422,6 +495,11 @@ export class OrdersService {
         `El pedido ${data.order_number} salió a entrega.`,
         { order_id: id, order_number: data.order_number },
       );
+      await this.sendOrderStatusEmail(id, 'shipped');
+    }
+
+    if (status === 'delivered') {
+      await this.sendOrderStatusEmail(id, 'delivered');
     }
 
     return data;
@@ -460,5 +538,119 @@ export class OrdersService {
     if (dto.photo_url?.trim()) noteParts.push(`Foto: ${dto.photo_url.trim()}`);
 
     return this.updateStatus(id, 'delivered', noteParts.join(' — '), userId);
+  }
+
+  private storefrontUrl() {
+    return (process.env.FRONTEND_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
+  }
+
+  private trackUrl() {
+    return `${this.storefrontUrl()}/pedidos/seguimiento`;
+  }
+
+  private productName(product: unknown) {
+    const row = Array.isArray(product) ? product[0] : product;
+    if (row && typeof row === 'object' && 'name' in row && typeof (row as { name?: unknown }).name === 'string') {
+      return (row as { name: string }).name;
+    }
+    return 'Producto';
+  }
+
+  private mapEmailItems(items: unknown) {
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => {
+      const row = item as {
+        quantity?: number;
+        unit_price?: number;
+        subtotal?: number;
+        size?: string | null;
+        color?: string | null;
+        product?: unknown;
+      };
+      const base = this.productName(row.product);
+      const detail = [row.size ? `Talla ${row.size}` : null, row.color?.trim() || null]
+        .filter(Boolean)
+        .join(' · ');
+      return {
+        name: detail ? `${base} (${detail})` : base,
+        quantity: Number(row.quantity ?? 0),
+        unitPrice: Number(row.unit_price ?? 0),
+        subtotal: Number(row.subtotal ?? 0),
+      };
+    });
+  }
+
+  private async sendOrderPlacedEmail(
+    customerId: string,
+    order: {
+      id: string;
+      order_number?: string;
+      subtotal?: number;
+      discount?: number;
+      shipping_cost?: number;
+      total?: number;
+      shipping_address?: string | null;
+      shipping_city?: string | null;
+      items?: unknown;
+    },
+  ) {
+    const { data: customer } = await this.supabase
+      .from('customers')
+      .select('email, full_name')
+      .eq('id', customerId)
+      .maybeSingle();
+
+    await this.mail.sendOrderConfirmation(customer?.email, {
+      orderId: order.id,
+      orderNumber: String(order.order_number ?? ''),
+      customerName: customer?.full_name,
+      items: this.mapEmailItems(order.items),
+      subtotal: Number(order.subtotal ?? 0),
+      discount: Number(order.discount ?? 0),
+      shippingCost: Number(order.shipping_cost ?? 0),
+      total: Number(order.total ?? 0),
+      shippingAddress: order.shipping_address,
+      shippingCity: order.shipping_city,
+      trackUrl: this.trackUrl(),
+    });
+  }
+
+  private async sendOrderStatusEmail(orderId: string, status: 'shipped' | 'delivered') {
+    const { data: order } = await this.supabase
+      .from('orders')
+      .select(
+        'id, order_number, subtotal, discount, shipping_cost, total, shipping_address, shipping_city, customer:customers(email, full_name), items:order_items(quantity, unit_price, subtotal, size, color, product:products(name))',
+      )
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!order) return;
+
+    const customerRaw = (order as { customer?: unknown }).customer;
+    const customer = Array.isArray(customerRaw) ? customerRaw[0] : customerRaw;
+    const contact = (customer ?? {}) as { email?: string; full_name?: string };
+    const payload = {
+      orderId: order.id,
+      orderNumber: String(order.order_number ?? ''),
+      customerName: contact.full_name,
+      items: this.mapEmailItems((order as { items?: unknown }).items),
+      subtotal: Number(order.subtotal ?? 0),
+      discount: Number(order.discount ?? 0),
+      shippingCost: Number(order.shipping_cost ?? 0),
+      total: Number(order.total ?? 0),
+      shippingAddress: order.shipping_address,
+      shippingCity: order.shipping_city,
+      trackUrl:
+        status === 'delivered'
+          ? `${this.storefrontUrl()}/pedidos`
+          : this.trackUrl(),
+    };
+
+    if (status === 'shipped') {
+      await this.mail.sendOrderShipped(contact.email, payload);
+      return;
+    }
+
+    await this.mail.sendOrderDelivered(contact.email, payload);
   }
 }

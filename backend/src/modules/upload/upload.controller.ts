@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { CatalogAuth, OrdersAuth } from '../../common/decorators/staff-auth.decorator';
 import { UploadService } from './upload.service';
 
 @ApiTags('upload')
@@ -17,7 +17,7 @@ export class UploadController {
   constructor(private readonly service: UploadService) {}
 
   @Post('product-image')
-  @StaffAuth()
+  @CatalogAuth()
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   uploadProductImage(@UploadedFile() file: Express.Multer.File) {
@@ -25,7 +25,7 @@ export class UploadController {
   }
 
   @Post('delivery-photo')
-  @StaffAuth()
+  @OrdersAuth()
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   uploadDeliveryPhoto(@UploadedFile() file: Express.Multer.File) {
@@ -33,7 +33,7 @@ export class UploadController {
   }
 
   @Delete('product-image')
-  @StaffAuth()
+  @CatalogAuth()
   deleteProductImage(@Query('path') path: string) {
     return this.service.deleteProductImage(path);
   }

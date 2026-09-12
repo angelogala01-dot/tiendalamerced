@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:la_merced_mobile/core/api/api_client.dart';
+import 'package:la_merced_mobile/core/catalog/product_info.dart';
+import 'package:la_merced_mobile/core/navigation/staff_actions.dart';
 import 'package:la_merced_mobile/core/theme/app_theme.dart';
 import 'package:la_merced_mobile/core/widgets/ui_bits.dart';
 
@@ -31,7 +33,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _error = null;
     });
     try {
-      final data = await _api.get('/notifications');
+      final data = await _api.get('/notifications', cache: false);
       setState(() {
         _items = data is List ? data : [];
         _loading = false;
@@ -54,13 +56,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Future<void> _markOne(Map<String, dynamic> n) async {
+  Future<void> _open(Map<String, dynamic> n) async {
     final unread = n['is_read'] != true;
     if (unread) {
-      await _api.patch('/notifications/${n['id']}/read');
-      await _load();
-      widget.onChanged?.call();
+      try {
+        await _api.patch('/notifications/${n['id']}/read');
+        await _load();
+        widget.onChanged?.call();
+      } catch (_) {}
     }
+    if (!mounted) return;
+
+    final type = n['type']?.toString();
+    final payload = ProductInfo.notificationPayload(n['data']);
+    final productId = payload['product_id']?.toString();
+    final sku = payload['sku']?.toString();
+    final orderId = payload['order_id']?.toString();
+
+    if (type == 'stock' && (productId != null && productId.isNotEmpty || sku != null && sku.isNotEmpty)) {
+      await openProductById(context, id: productId, sku: sku);
+      return;
+    }
+    if ((type == 'order' || orderId != null) && orderId != null && orderId.isNotEmpty) {
+      await openDeliveryById(context, orderId);
+      return;
+    }
+
     if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
@@ -96,7 +117,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'stock':
         return Icons.warning_amber_rounded;
       case 'order':
-        return Icons.local_shipping_outlined;
+        return Icons.receipt_long_outlined;
       default:
         return Icons.notifications_outlined;
     }
@@ -125,7 +146,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ? const EmptyState(
                           icon: Icons.notifications_none,
                           title: 'Todo en calma',
-                          subtitle: 'Te avisaremos aquí si llega un pedido o baja el stock.',
+                          subtitle: 'Te avisaremos aquí si llega un pedido online o baja el stock.',
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
@@ -135,10 +156,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             final n = _items[i] as Map<String, dynamic>;
                             final isUnread = n['is_read'] != true;
                             final tone = _tone(n['type']?.toString());
+                            final payload = ProductInfo.notificationPayload(n['data']);
+                            final canOpen = payload['product_id'] != null || payload['order_id'] != null;
                             return Card(
                               color: isUnread ? tone.withOpacity(0.08) : Colors.white,
                               child: ListTile(
-                                onTap: () => _markOne(n),
+                                onTap: () => _open(n),
                                 leading: CircleAvatar(
                                   backgroundColor: tone.withOpacity(0.15),
                                   child: Icon(_icon(n['type']?.toString()), color: tone),
@@ -148,7 +171,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   style: TextStyle(fontWeight: isUnread ? FontWeight.w800 : FontWeight.w500),
                                 ),
                                 subtitle: Text(n['message']?.toString() ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                                trailing: isUnread ? Icon(Icons.circle, size: 10, color: tone) : null,
+                                trailing: canOpen
+                                    ? Icon(Icons.chevron_right, color: tone)
+                                    : (isUnread ? Icon(Icons.circle, size: 10, color: tone) : null),
                               ),
                             );
                           },

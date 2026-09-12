@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { chatbotService } from '@/services/catalog.service';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -16,11 +17,22 @@ interface Message {
 const SESSION_KEY = 'lamerced-ai-session';
 
 const SUGGESTIONS = [
-  { label: 'Productos', message: '¿Qué productos tienen disponibles?' },
-  { label: 'Horarios', message: '¿Cuál es el horario de atención?' },
-  { label: 'Pagos', message: '¿Qué métodos de pago aceptan?' },
+  { label: 'Zapatillas', message: '¿Tienen zapatillas disponibles?' },
   { label: 'Mi pedido', message: 'Quiero consultar el estado de un pedido' },
+  { label: 'Envíos', message: '¿Hacen delivery y cuánto cuesta el envío?' },
+  { label: 'Promos', message: '¿Hay promociones o descuentos vigentes?' },
+  { label: 'Pagos', message: '¿Qué métodos de pago aceptan?' },
 ] as const;
+
+async function optionalToken() {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token;
+  } catch {
+    return undefined;
+  }
+}
 
 function getSessionId() {
   const existing = sessionStorage.getItem(SESSION_KEY);
@@ -35,7 +47,7 @@ export default function ChatPage() {
     {
       role: 'assistant',
       content:
-        '¡Hola! Soy el asistente de La Merced PyK. Puedo ayudarte con productos, stock, horarios, pagos y seguimiento de pedidos.',
+        '¡Hola! Puedo buscar productos con precio y stock, seguir un pedido con el número P-… y resolver envíos, pagos u horarios.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -59,7 +71,7 @@ export default function ChatPage() {
     setMessages((m) => [...m, { role: 'user', content: msg }]);
     setLoading(true);
     try {
-      const res = await chatbotService.send(msg, sessionId);
+      const res = await chatbotService.send(msg, sessionId, await optionalToken());
       setMessages((m) => [...m, { role: 'assistant', content: res.reply }]);
     } catch {
       setMessages((m) => [
@@ -80,8 +92,8 @@ export default function ChatPage() {
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-3xl font-bold mb-2">Atención al cliente</h1>
       <p className="mb-6 text-muted-foreground">
-        Chat con IA — consultas sobre productos, horarios, pagos y pedidos. Las respuestas se
-        basan en el catálogo y las preguntas frecuentes de la tienda.
+        Pregunta por un modelo, pega tu número de pedido (P-…) o consulta envíos, promociones y
+        pagos. Si iniciaste sesión, también puedo listar tus compras.
       </p>
       <Card className="flex h-[480px] flex-col">
         <CardHeader className="border-b border-border/60">

@@ -1,6 +1,7 @@
 import { Global, Module, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { createSupabaseClient } from './create-supabase-client';
 
 export const SUPABASE_CLIENT = 'SUPABASE_CLIENT';
 
@@ -49,7 +50,7 @@ function resolveSupabaseKey(config: ConfigService): { key: string; isServiceRole
           );
         }
 
-        return createClient(url, key, {
+        return createSupabaseClient(url, key, {
           auth: { autoRefreshToken: false, persistSession: false },
         });
       },

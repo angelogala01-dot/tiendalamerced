@@ -7,9 +7,12 @@ import { toast } from 'sonner';
 import { useApi } from '@/hooks/use-api';
 import type { Brand } from '@/types';
 import { PageHeader } from '@/components/admin/page-header';
+import { CatalogSwitcher } from '@/components/admin/catalog-switcher';
+import { CatalogGuidance } from '@/components/admin/catalog-guidance';
 import { DataTableShell } from '@/components/admin/data-table-shell';
 import { ImageUpload } from '@/components/admin/image-upload';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { EntitySelect } from '@/components/admin/entity-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,9 +43,9 @@ function slugify(text: string) {
     .replace(/^-|-$/g, '');
 }
 
-type BrandForm = { name: string; slug: string; logo_url: string; is_active: boolean };
+type BrandForm = { name: string; slug: string; logo_url: string; supplier_id: string; is_active: boolean };
 
-const emptyForm: BrandForm = { name: '', slug: '', logo_url: '', is_active: true };
+const emptyForm: BrandForm = { name: '', slug: '', logo_url: '', supplier_id: '', is_active: true };
 
 export default function AdminMarcasPage() {
   const { api, upload } = useApi();
@@ -58,14 +61,38 @@ export default function AdminMarcasPage() {
     queryFn: () => api<Brand[]>('/brands'),
   });
 
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['admin-suppliers'],
+    queryFn: () => api<Array<{ id: string; name: string }>>('/suppliers'),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
-        name: form.name.trim(),
-        slug: form.slug.trim() || slugify(form.name),
-        logo_url: form.logo_url.trim() || undefined,
-        ...(editing ? { is_active: form.is_active } : {}),
+      const name = form.name.trim();
+      const slug = (form.slug.trim() || slugify(form.name)).toLowerCase();
+      const duplicate = brands.find(
+        (b) =>
+          b.id !== editing?.id &&
+          (b.slug === slug || b.name.trim().toLowerCase() === name.toLowerCase()),
+      );
+      if (duplicate) {
+        throw new Error(
+          duplicate.slug === slug
+            ? 'Ya existe una marca con ese slug. Cambia el nombre o el slug.'
+            : 'Ya existe una marca con ese nombre.',
+        );
+      }
+
+      const payload: Record<string, unknown> = {
+        name,
+        slug,
       };
+      if (form.logo_url.trim()) payload.logo_url = form.logo_url.trim();
+      if (form.supplier_id) payload.supplier_id = form.supplier_id;
+      else if (editing && (editing.supplier_id || editing.supplier?.id)) payload.supplier_id = null;
+      if (editing) payload.is_active = form.is_active ?? true;
+
       if (editing) {
         return api<Brand>(`/brands/${editing.id}`, {
           method: 'PATCH',
@@ -97,12 +124,18 @@ export default function AdminMarcasPage() {
 
   return (
     <div className="admin-page-enter space-y-6">
-      <PageHeader title="Marcas" description="Gestión de marcas del catálogo">
+      <PageHeader
+        title="Marcas"
+        description="Línea comercial del producto. Opcional: asóciala a un proveedor."
+      >
         <Button size="sm" className="gap-1.5" onClick={() => { setEditing(null); setForm(emptyForm); setDialogOpen(true); }}>
           <Plus className="size-4" aria-hidden />
           Nueva marca
         </Button>
       </PageHeader>
+
+      <CatalogSwitcher />
+      <CatalogGuidance page="brands" />
 
       <DataTableShell
         title="Listado de marcas"
@@ -114,6 +147,7 @@ export default function AdminMarcasPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead scope="col">Nombre</TableHead>
+                <TableHead scope="col">Proveedor</TableHead>
                 <TableHead scope="col">Slug</TableHead>
                 <TableHead scope="col" className="text-right">Acciones</TableHead>
               </TableRow>
@@ -122,6 +156,9 @@ export default function AdminMarcasPage() {
               {brands.map((brand) => (
                 <TableRow key={brand.id}>
                   <TableCell className="font-medium">{brand.name}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {suppliers.find((s) => s.id === (brand.supplier_id ?? brand.supplier?.id))?.name || '—'}
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{brand.slug}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -130,7 +167,13 @@ export default function AdminMarcasPage() {
                         size="icon-sm"
                         onClick={() => {
                           setEditing(brand);
-                          setForm({ name: brand.name, slug: brand.slug, logo_url: brand.logo_url ?? '', is_active: true });
+                          setForm({
+                            name: brand.name,
+                            slug: brand.slug,
+                            logo_url: brand.logo_url ?? '',
+                            supplier_id: brand.supplier?.id ?? brand.supplier_id ?? '',
+                            is_active: brand.is_active ?? true,
+                          });
                           setDialogOpen(true);
                         }}
                         aria-label={`Editar ${brand.name}`}
@@ -191,8 +234,16 @@ export default function AdminMarcasPage() {
                 required
               />
             </div>
+            <EntitySelect
+              label="Proveedor"
+              value={form.supplier_id}
+              onChange={(v) => setForm((f) => ({ ...f, supplier_id: v }))}
+              items={suppliers}
+              placeholder="Opcional"
+              emptyLabel="Sin proveedor"
+            />
             <ImageUpload
-              label="Logo de marca"
+              label="Logo de marca (opcional)"
               currentUrl={form.logo_url || null}
               onFileSelected={async (file) => {
                 const result = await upload<{ url: string }>('/upload/product-image', file);

@@ -14,8 +14,7 @@ describe('CreateOrderDto', () => {
     const dto = plainToInstance(CreateOrderDto, {
       items: [{ product_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 2 }],
       payment_method: 'yape',
-      shipping_address: 'Av. Principal 123',
-      shipping_city: 'Lima',
+      fulfillment_method: 'pickup',
     });
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
@@ -31,5 +30,17 @@ describe('CreateOrderDto', () => {
     });
     const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
     expect(errors).toHaveLength(0);
+  });
+
+  it('rechaza DNI que no tenga 8 dígitos', async () => {
+    const dto = plainToInstance(CreateOrderDto, {
+      items: [{ product_id: '550e8400-e29b-41d4-a716-446655440000', quantity: 1 }],
+      payment_method: 'yape',
+      voucher_type: 'boleta',
+      document_type: 'DNI',
+      document_number: '1234567',
+    });
+    const errors = await validate(dto);
+    expect(errors.some((error) => error.property === 'document_number')).toBe(true);
   });
 });

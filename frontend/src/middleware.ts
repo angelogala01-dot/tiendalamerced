@@ -1,6 +1,17 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+function isInvalidRefreshTokenError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const message = 'message' in error ? String((error as { message?: string }).message ?? '') : '';
+  const code = 'code' in error ? String((error as { code?: string }).code ?? '') : '';
+  return (
+    /refresh token/i.test(message) ||
+    /invalid.?refresh/i.test(message) ||
+    code === 'refresh_token_not_found'
+  );
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -23,7 +34,26 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error && isInvalidRefreshTokenError(error)) {
+      await supabase.auth.signOut({ scope: 'local' });
+      user = null;
+    } else {
+      user = data.user;
+    }
+  } catch (error) {
+    if (isInvalidRefreshTokenError(error)) {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // ignore
+      }
+    }
+    user = null;
+  }
+
   const path = request.nextUrl.pathname;
 
   if (path.startsWith('/pedidos/confirmacion')) {

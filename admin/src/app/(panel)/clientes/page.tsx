@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -28,6 +29,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  isOptionalPeruDni,
+  isOptionalPeruPhone,
+  isPeruRuc,
+  peruDniMessage,
+  peruPhoneMessage,
+  peruRucMessage,
+  restrictDigits,
+} from '@/lib/validation/peru';
 
 type CustomerForm = {
   full_name: string;
@@ -53,16 +63,22 @@ export default function AdminClientesPage() {
   const { api } = useApi();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState<Customer | null>(null);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-customers', search],
+    queryKey: ['admin-customers', debouncedSearch],
     queryFn: async () => {
-      const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+      const q = debouncedSearch ? `?search=${encodeURIComponent(debouncedSearch)}` : '';
       const res = await api<{ data: Customer[] | null }>(`/customers${q}`);
       return res.data ?? [];
     },
@@ -70,6 +86,14 @@ export default function AdminClientesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!isOptionalPeruPhone(form.phone)) throw new Error(peruPhoneMessage());
+      const isRuc = form.document_type.trim().toUpperCase() === 'RUC';
+      if (isRuc && form.document_number.trim() && !isPeruRuc(form.document_number)) {
+        throw new Error(peruRucMessage());
+      }
+      if (!isRuc && !isOptionalPeruDni(form.document_number)) {
+        throw new Error(peruDniMessage());
+      }
       const payload = {
         full_name: form.full_name.trim(),
         email: form.email.trim() || undefined,
@@ -85,7 +109,13 @@ export default function AdminClientesPage() {
       return api('/customers', { method: 'POST', body: JSON.stringify(payload) });
     },
     onSuccess: () => {
-      toast.success(editing ? 'Cliente actualizado' : 'Cliente creado');
+      toast.success(
+        editing
+          ? 'Cliente actualizado'
+          : form.email.trim()
+            ? 'Cliente creado. Se envió un correo con el acceso a la tienda.'
+            : 'Cliente creado',
+      );
       queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
       setDialogOpen(false);
       setEditing(null);
@@ -95,9 +125,16 @@ export default function AdminClientesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api(`/customers/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      toast.success('Cliente desactivado');
+    mutationFn: (id: string) =>
+      api<{ deleted?: boolean; anonymized?: boolean }>(`/customers/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: (result) => {
+      toast.success(
+        result?.anonymized
+          ? 'Cliente anonimizado (tenía pedidos/ventas)'
+          : 'Cliente eliminado',
+      );
       queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
       setDeleteOpen(false);
       setDeleting(null);
@@ -168,8 +205,17 @@ export default function AdminClientesPage() {
                         }}>
                           <Pencil className="size-4" />
                         </Button>
-                        <Button variant="ghost" size="icon-sm" onClick={() => { setDeleting(c); setDeleteOpen(true); }}>
-                          <Trash2 className="size-4 text-destructive" />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => {
+                            setDeleting(c);
+                            setDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                          Eliminar
                         </Button>
                       </div>
                     </TableCell>
@@ -187,6 +233,11 @@ export default function AdminClientesPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar cliente' : 'Nuevo cliente'}</DialogTitle>
+            {!editing ? (
+              <DialogDescription>
+                Si indicas un correo, le creamos cuenta en la tienda y le enviamos el acceso.
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
           <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}>
             <div className="space-y-2">
@@ -195,12 +246,19 @@ export default function AdminClientesPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>Email {editing ? '' : '(recibe el acceso)'}</Label>
                 <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Teléfono</Label>
-                <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+                <Label>Celular</Label>
+                <Input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={9}
+                  placeholder="9XXXXXXXX"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: restrictDigits(e.target.value, 9) }))}
+                />
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -210,7 +268,21 @@ export default function AdminClientesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Doc. número</Label>
-                <Input value={form.document_number} onChange={(e) => setForm((f) => ({ ...f, document_number: e.target.value }))} />
+                <Input
+                  inputMode="numeric"
+                  maxLength={form.document_type.trim().toUpperCase() === 'RUC' ? 11 : 8}
+                  placeholder={form.document_type.trim().toUpperCase() === 'RUC' ? '11 dígitos' : '8 dígitos'}
+                  value={form.document_number}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      document_number: restrictDigits(
+                        e.target.value,
+                        f.document_type.trim().toUpperCase() === 'RUC' ? 11 : 8,
+                      ),
+                    }))
+                  }
+                />
               </div>
             </div>
             <div className="space-y-2">
@@ -232,12 +304,14 @@ export default function AdminClientesPage() {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Desactivar cliente"
-        description={`¿Desactivar a "${deleting?.full_name}"?`}
-        confirmLabel="Desactivar"
+        title="Eliminar cliente"
+        description={`¿Eliminar a "${deleting?.full_name}"? Si no tiene pedidos ni ventas se borra del todo. Si tiene historial, se anonimiza para conservar comprobantes.`}
+        confirmLabel="Eliminar"
         variant="destructive"
         loading={deleteMutation.isPending}
-        onConfirm={() => { if (deleting) deleteMutation.mutate(deleting.id); }}
+        onConfirm={() => {
+          if (deleting) deleteMutation.mutate(deleting.id);
+        }}
       />
     </div>
   );

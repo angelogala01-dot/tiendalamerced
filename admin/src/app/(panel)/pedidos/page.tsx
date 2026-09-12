@@ -9,7 +9,7 @@ import type { Order } from '@/types';
 import { PageHeader } from '@/components/admin/page-header';
 import { DataTableShell } from '@/components/admin/data-table-shell';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
-import { EmitInvoiceDialog, issuedInvoice } from '@/components/admin/emit-invoice-dialog';
+import { EmitInvoiceDialog, issuedInvoice, voucherFromSale } from '@/components/admin/emit-invoice-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -241,8 +241,14 @@ export default function AdminPedidosPage() {
               </div>
               {detail.shipping_address ? (
                 <div>
-                  <span className="text-muted-foreground">Envío:</span>{' '}
-                  {detail.shipping_address}, {detail.shipping_city}
+                  <span className="text-muted-foreground">
+                    {(detail.shipping_city ?? '').toLowerCase().includes('retiro en tienda')
+                      ? 'Retiro:'
+                      : 'Envío:'}
+                  </span>{' '}
+                  {(detail.shipping_city ?? '').toLowerCase().includes('retiro en tienda')
+                    ? `${detail.shipping_city} — ${detail.shipping_address}`
+                    : `${detail.shipping_address}, ${detail.shipping_city}`}
                 </div>
               ) : null}
               <div>
@@ -324,8 +330,9 @@ export default function AdminPedidosPage() {
         open={emitOpen}
         onOpenChange={setEmitOpen}
         orderId={selected?.id}
-        defaultLegalName={selected?.customer?.full_name ?? ''}
-        defaultDocumentNumber={selected?.customer?.document_number ?? ''}
+        defaultKind={voucherFromSale(selected).kind}
+        defaultLegalName={voucherFromSale(selected).legalName}
+        defaultDocumentNumber={voucherFromSale(selected).documentNumber}
       />
 
       <ConfirmDialog

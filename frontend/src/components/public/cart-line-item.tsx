@@ -4,12 +4,13 @@ import Image from 'next/image';
 import { Minus, Plus, Trash2, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CartItem } from '@/types';
+import { cartLineKey, variantLabel } from '@/lib/catalog/variants';
 import { cn } from '@/lib/utils';
 
 interface CartLineItemProps {
   item: CartItem;
-  onUpdateQuantity?: (productId: string, quantity: number) => void;
-  onRemove?: (productId: string) => void;
+  onUpdateQuantity?: (lineKey: string, quantity: number) => void;
+  onRemove?: (lineKey: string) => void;
   variant?: 'editable' | 'readonly';
   className?: string;
 }
@@ -50,6 +51,9 @@ export function CartLineItem({
       <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <h3 className="font-medium leading-snug line-clamp-2">{item.name}</h3>
+          {item.size || item.color ? (
+            <p className="mt-0.5 text-sm text-muted-foreground">{variantLabel(item)}</p>
+          ) : null}
           <p className="mt-1 text-sm text-muted-foreground">
             S/ {item.price.toFixed(2)} c/u
             <span className="mx-1.5 text-border">·</span>
@@ -64,7 +68,7 @@ export function CartLineItem({
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => onUpdateQuantity(item.productId, item.quantity - 1)}
+                onClick={() => onUpdateQuantity(cartLineKey(item), item.quantity - 1)}
                 aria-label="Disminuir cantidad"
               >
                 <Minus className="size-4" />
@@ -76,7 +80,7 @@ export function CartLineItem({
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => onUpdateQuantity(item.productId, item.quantity + 1)}
+                onClick={() => onUpdateQuantity(cartLineKey(item), item.quantity + 1)}
                 aria-label="Aumentar cantidad"
               >
                 <Plus className="size-4" />
@@ -97,7 +101,7 @@ export function CartLineItem({
               size="icon"
               variant="ghost"
               className="size-8 text-muted-foreground hover:text-destructive"
-              onClick={() => onRemove(item.productId)}
+              onClick={() => onRemove(cartLineKey(item))}
               aria-label="Eliminar producto"
             >
               <Trash2 className="size-4" />

@@ -10,6 +10,9 @@ class ApiClient {
 
   final String baseUrl;
 
+  static final Map<String, _CacheEntry> _cache = {};
+  static const _ttl = Duration(seconds: 20);
+
   Future<Map<String, String>> _headers({bool json = true}) async {
     final token = Supabase.instance.client.auth.currentSession?.accessToken;
     return {
@@ -18,12 +21,33 @@ class ApiClient {
     };
   }
 
-  Future<dynamic> get(String path) async {
+  Future<List<dynamic>> getList(String path, {bool cache = true}) async {
+    final decoded = await get(path, cache: cache);
+    if (decoded is List) return decoded;
+    if (decoded is Map && decoded['data'] is List) {
+      return decoded['data'] as List<dynamic>;
+    }
+    return [];
+  }
+
+  Future<dynamic> get(String path, {bool cache = true}) async {
+    if (cache) {
+      final hit = _cache[path];
+      if (hit != null && DateTime.now().difference(hit.at) < _ttl) {
+        return hit.data;
+      }
+    }
+
     final res = await http.get(Uri.parse('$baseUrl$path'), headers: await _headers());
-    return _decode(res);
+    final decoded = _decode(res);
+    if (cache) {
+      _cache[path] = _CacheEntry(DateTime.now(), decoded);
+    }
+    return decoded;
   }
 
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
+    _cache.clear();
     final res = await http.post(
       Uri.parse('$baseUrl$path'),
       headers: await _headers(),
@@ -33,6 +57,7 @@ class ApiClient {
   }
 
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) async {
+    _cache.clear();
     final res = await http.patch(
       Uri.parse('$baseUrl$path'),
       headers: await _headers(),
@@ -46,6 +71,7 @@ class ApiClient {
     List<int> bytes,
     String filename,
   ) async {
+    _cache.clear();
     final token = Supabase.instance.client.auth.currentSession?.accessToken;
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'));
     if (token != null) {
@@ -72,6 +98,12 @@ class ApiClient {
     }
     return decoded;
   }
+}
+
+class _CacheEntry {
+  _CacheEntry(this.at, this.data);
+  final DateTime at;
+  final dynamic data;
 }
 
 class ApiException implements Exception {

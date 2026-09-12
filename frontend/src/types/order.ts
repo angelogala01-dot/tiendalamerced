@@ -13,6 +13,8 @@ export type OrderLineItem = {
   quantity: number;
   unit_price?: number;
   subtotal: number;
+  size?: string | null;
+  color?: string | null;
   product?: OrderProduct | null;
 };
 
@@ -59,5 +61,9 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   yape: 'Yape',
   plin: 'Plin',
   card: 'Tarjeta',
-  cash: 'Efectivo contra entrega',
+  cash: 'Efectivo',
 };
+
+export function isStorePickup(order: Pick<OrderSummary, 'shipping_city'>): boolean {
+  return (order.shipping_city ?? '').toLowerCase().includes('retiro en tienda');
+}

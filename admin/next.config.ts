@@ -6,9 +6,13 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
 
 const nextConfig: NextConfig = {
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: supabaseHost },
     ],
+  },
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
   },
   async redirects() {
     return [{ source: '/', destination: '/dashboard', permanent: false }];

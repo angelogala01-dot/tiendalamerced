@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
@@ -10,11 +10,17 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsPeruDocument, toDigitsOrUndefined } from '../../../shared/validators/peru';
 
 class SaleItemDto {
   @ApiProperty()
   @IsUUID()
   product_id: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  variant_id?: string;
 
   @ApiProperty()
   @IsNumber()
@@ -69,7 +75,8 @@ export class CreateSaleDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruDocument()
   document_number?: string;
 
   @ApiPropertyOptional()

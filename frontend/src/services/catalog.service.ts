@@ -38,12 +38,13 @@ export const dashboardService = {
 };
 
 export const chatbotService = {
-  send: (message: string, sessionId: string) =>
-    apiFetch<{ reply: string; sessionId: string; source?: 'openai' | 'fallback' | 'rules' }>(
+  send: (message: string, sessionId: string, token?: string) =>
+    apiFetch<{ reply: string; sessionId: string; source?: 'openai' | 'fallback' | 'rules' | 'catalog' }>(
       '/chatbot/chat',
       {
         method: 'POST',
         body: JSON.stringify({ message, sessionId }),
+        token,
       },
     ),
 };

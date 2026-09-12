@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isOptionalPeruPhone, peruPhoneMessage } from '@/lib/validation/peru';
 
 export const loginSchema = z.object({
   email: z.string().email('Correo inválido'),
@@ -8,7 +9,10 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   full_name: z.string().min(2, 'Nombre requerido'),
   email: z.string().email('Correo inválido'),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .optional()
+    .refine((value) => isOptionalPeruPhone(value), peruPhoneMessage()),
   password: z.string().min(6, 'Mínimo 6 caracteres'),
   confirm_password: z.string(),
 }).refine((d) => d.password === d.confirm_password, {

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ShoppingCart,
   Heart,
@@ -10,9 +10,6 @@ import {
   Search,
   Menu,
   MessageCircle,
-  LogIn,
-  LogOut,
-  UserPlus,
 } from 'lucide-react';
 import { PUBLIC_ROUTES } from '@/constants/routes';
 import { cn } from '@/lib/utils';
@@ -24,7 +21,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -46,21 +42,53 @@ const NAV = [
   { href: PUBLIC_ROUTES.CONTACT, label: 'Contacto' },
 ] as const;
 
+const ACCOUNT_LINKS = [
+  { href: PUBLIC_ROUTES.PROFILE, label: 'Perfil' },
+  { href: PUBLIC_ROUTES.ORDERS, label: 'Mis pedidos' },
+  { href: PUBLIC_ROUTES.ORDER_TRACK, label: 'Seguimiento' },
+] as const;
+
 const iconLinkClass =
   'inline-flex size-10 items-center justify-center rounded-full text-foreground/80 transition-all duration-200 hover:bg-accent/10 hover:text-accent hover:-translate-y-0.5';
 
+const accountMenuClass =
+  'w-[13.5rem] min-w-[13.5rem] rounded-none border-0 bg-[#1C1410] p-6 text-[#E8E0D8] shadow-xl ring-0';
+
+const accountItemClass =
+  'cursor-pointer rounded-none px-0 py-2 text-[15px] font-normal text-[#E8E0D8] focus:bg-transparent focus:text-white data-[highlighted]:bg-transparent data-[highlighted]:text-white';
+
 export function PublicHeader({ cartCount = 0 }: PublicHeaderProps) {
-  const { user, profile, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [headerQuery, setHeaderQuery] = useState('');
+  const headerSearchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchOpen) headerSearchRef.current?.focus();
+  }, [searchOpen]);
+
+  function submitHeaderSearch(event: FormEvent) {
+    event.preventDefault();
+    const query = headerQuery.trim();
+    setSearchOpen(false);
+    setHeaderQuery('');
+    if (pathname === PUBLIC_ROUTES.CATALOG && !query) {
+      document.getElementById('catalog-search')?.focus();
+      return;
+    }
+    const href = query
+      ? `${PUBLIC_ROUTES.CATALOG}?q=${encodeURIComponent(query)}`
+      : `${PUBLIC_ROUTES.CATALOG}?focus=1`;
+    router.push(href);
+  }
 
   async function handleSignOut() {
     await signOut();
     window.location.href = PUBLIC_ROUTES.HOME;
   }
-
-  const displayName =
-    profile?.full_name?.split(' ')[0] ?? user?.email?.split('@')[0] ?? 'Cuenta';
 
   return (
     <header className="sticky top-0 z-50">
@@ -104,13 +132,41 @@ export function PublicHeader({ cartCount = 0 }: PublicHeaderProps) {
           </nav>
 
           <div className="flex items-center gap-0.5 sm:gap-1">
-            <Link
-              href={PUBLIC_ROUTES.CATALOG}
-              className={cn(iconLinkClass, 'hidden sm:inline-flex')}
-              aria-label="Buscar"
-            >
-              <Search className="h-[18px] w-[18px]" strokeWidth={1.6} />
-            </Link>
+            {searchOpen ? (
+              <form onSubmit={submitHeaderSearch} className="hidden sm:block">
+                <input
+                  ref={headerSearchRef}
+                  type="search"
+                  value={headerQuery}
+                  onChange={(e) => setHeaderQuery(e.target.value)}
+                  placeholder="Buscar productos..."
+                  className="h-10 w-48 rounded-full border border-input bg-background px-4 text-sm outline-none md:w-64 focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Buscar productos"
+                  onBlur={() => {
+                    if (!headerQuery.trim()) setSearchOpen(false);
+                  }}
+                />
+              </form>
+            ) : (
+              <button
+                type="button"
+                className={iconLinkClass}
+                aria-label="Buscar"
+                onClick={() => {
+                  if (pathname === PUBLIC_ROUTES.CATALOG) {
+                    document.getElementById('catalog-search')?.focus();
+                    return;
+                  }
+                  if (window.innerWidth < 640) {
+                    router.push(`${PUBLIC_ROUTES.CATALOG}?focus=1`);
+                    return;
+                  }
+                  setSearchOpen(true);
+                }}
+              >
+                <Search className="h-[18px] w-[18px]" strokeWidth={1.6} />
+              </button>
+            )}
             <Link href={PUBLIC_ROUTES.CHAT} className={iconLinkClass} aria-label="Chat">
               <MessageCircle className="h-[18px] w-[18px]" strokeWidth={1.6} />
             </Link>
@@ -130,69 +186,51 @@ export function PublicHeader({ cartCount = 0 }: PublicHeaderProps) {
               )}
             </Link>
 
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={iconLinkClass}
-                  aria-label={`Menú de ${displayName}`}
-                >
-                  <User className="h-[18px] w-[18px]" strokeWidth={1.6} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 rounded-2xl">
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel className="font-normal">
-                      <p className="text-sm font-medium">{displayName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                    </DropdownMenuLabel>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Link href={PUBLIC_ROUTES.PROFILE} className="w-full">
-                      Mi perfil
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link href={PUBLIC_ROUTES.ORDERS} className="w-full">
-                      Mis pedidos
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={iconLinkClass}
+                aria-label="Mi cuenta"
+              >
+                <User className="h-[18px] w-[18px]" strokeWidth={1.6} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={10} className={accountMenuClass}>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="mb-3 px-0 py-0 font-[family-name:var(--font-heading)] text-[13px] font-semibold tracking-[0.18em] text-[#D4CBC3]">
+                    MI CUENTA
+                  </DropdownMenuLabel>
+                  {ACCOUNT_LINKS.map((item) => (
+                    <DropdownMenuItem key={item.href} className={accountItemClass}>
+                      <Link href={item.href} className="block w-full">
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
+                {user ? (
                   <DropdownMenuItem
-                    variant="destructive"
+                    className={cn(accountItemClass, 'mt-3 pt-3 text-[#D4CBC3]/70')}
                     onClick={() => {
                       void handleSignOut();
                     }}
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
                     Cerrar sesión
                   </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <>
-                <Link
-                  href={PUBLIC_ROUTES.LOGIN}
-                  className={cn(iconLinkClass, 'md:hidden')}
-                  aria-label="Iniciar sesión"
-                  title="Iniciar sesión"
-                >
-                  <LogIn className="h-[18px] w-[18px]" strokeWidth={1.6} />
-                </Link>
-                <div className="ml-1 hidden items-center gap-2 md:flex">
-                  <Link href={PUBLIC_ROUTES.LOGIN}>
-                    <Button variant="ghost" size="sm" className="h-9 rounded-full px-4 text-xs">
-                      Entrar
-                    </Button>
-                  </Link>
-                  <Link href={PUBLIC_ROUTES.REGISTER}>
-                    <Button size="sm" className="h-9 rounded-full px-4 text-xs">
-                      <UserPlus className="size-3.5" />
-                      Registro
-                    </Button>
-                  </Link>
-                </div>
-              </>
-            )}
+                ) : (
+                  <>
+                    <DropdownMenuItem className={cn(accountItemClass, 'mt-3 pt-3')}>
+                      <Link href={PUBLIC_ROUTES.LOGIN} className="block w-full">
+                        Entrar
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className={accountItemClass}>
+                      <Link href={PUBLIC_ROUTES.REGISTER} className="block w-full">
+                        Registro
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger
@@ -225,24 +263,63 @@ export function PublicHeader({ cartCount = 0 }: PublicHeaderProps) {
                     </Link>
                   ))}
                   <Link
+                    href={`${PUBLIC_ROUTES.CATALOG}?focus=1`}
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-muted"
+                  >
+                    Buscar productos
+                  </Link>
+                  <Link
                     href={PUBLIC_ROUTES.CHAT}
                     onClick={() => setOpen(false)}
                     className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-muted"
                   >
                     Chat en línea
                   </Link>
-                  {!user ? (
-                    <div className="mt-4 grid gap-2 px-2">
-                      <Link href={PUBLIC_ROUTES.LOGIN} onClick={() => setOpen(false)}>
-                        <Button variant="outline" className="w-full rounded-full">
-                          Iniciar sesión
-                        </Button>
+                  <div className="mt-4 rounded-none bg-[#1C1410] px-5 py-5 text-[#E8E0D8]">
+                    <p className="mb-3 font-[family-name:var(--font-heading)] text-[13px] font-semibold tracking-[0.18em] text-[#D4CBC3]">
+                      MI CUENTA
+                    </p>
+                    {ACCOUNT_LINKS.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className="block py-2 text-[15px] hover:text-white"
+                      >
+                        {item.label}
                       </Link>
-                      <Link href={PUBLIC_ROUTES.REGISTER} onClick={() => setOpen(false)}>
-                        <Button className="w-full rounded-full">Crear cuenta</Button>
-                      </Link>
-                    </div>
-                  ) : null}
+                    ))}
+                    {user ? (
+                      <button
+                        type="button"
+                        className="mt-3 block py-2 text-[15px] text-[#D4CBC3]/70"
+                        onClick={() => {
+                          setOpen(false);
+                          void handleSignOut();
+                        }}
+                      >
+                        Cerrar sesión
+                      </button>
+                    ) : (
+                      <>
+                        <Link
+                          href={PUBLIC_ROUTES.LOGIN}
+                          onClick={() => setOpen(false)}
+                          className="mt-3 block py-2 text-[15px] hover:text-white"
+                        >
+                          Entrar
+                        </Link>
+                        <Link
+                          href={PUBLIC_ROUTES.REGISTER}
+                          onClick={() => setOpen(false)}
+                          className="block py-2 text-[15px] hover:text-white"
+                        >
+                          Registro
+                        </Link>
+                      </>
+                    )}
+                  </div>
                 </nav>
               </SheetContent>
             </Sheet>

@@ -10,6 +10,7 @@ import { getPrimaryImageUrl } from '@/lib/catalog/product-images';
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  isStorePickup,
   type OrderSummary,
 } from '@/types/order';
 import { cn } from '@/lib/utils';
@@ -62,9 +63,12 @@ export function OrderReceipt({
           ) : null}
           {order.shipping_address ? (
             <div className="sm:col-span-2">
-              <span className="text-muted-foreground">Envío:</span>{' '}
-              {order.shipping_address}
-              {order.shipping_city ? `, ${order.shipping_city}` : ''}
+              <span className="text-muted-foreground">
+                {isStorePickup(order) ? 'Retiro:' : 'Envío:'}
+              </span>{' '}
+              {isStorePickup(order)
+                ? `${order.shipping_city}${order.shipping_address ? ` — ${order.shipping_address}` : ''}`
+                : `${order.shipping_address}${order.shipping_city ? `, ${order.shipping_city}` : ''}`}
             </div>
           ) : null}
         </div>
@@ -98,6 +102,11 @@ export function OrderReceipt({
                     <p className="font-medium leading-snug line-clamp-2">
                       {item.product?.name ?? 'Producto'}
                     </p>
+                    {item.size || item.color ? (
+                      <p className="text-xs text-muted-foreground">
+                        {[item.size ? `Talla ${item.size}` : null, item.color].filter(Boolean).join(' · ')}
+                      </p>
+                    ) : null}
                     <p className="text-xs text-muted-foreground">
                       {item.quantity} × S/ {Number(item.unit_price ?? item.subtotal / item.quantity).toFixed(2)}
                     </p>
@@ -124,7 +133,11 @@ export function OrderReceipt({
           ) : null}
           {order.shipping_cost != null ? (
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Envío</span>
+              <span className="text-muted-foreground">
+                {Number(order.shipping_cost) === 0 && isStorePickup(order)
+                  ? 'Retiro'
+                  : 'Envío'}
+              </span>
               <span className="tabular-nums">
                 {Number(order.shipping_cost) === 0
                   ? 'Gratis'

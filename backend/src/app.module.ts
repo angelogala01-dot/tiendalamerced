@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { BrandsModule } from './modules/brands/brands.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -34,6 +35,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     ProductsModule,
     CategoriesModule,
     BrandsModule,
+    SuppliersModule,
     InventoryModule,
     SalesModule,
     CustomersModule,

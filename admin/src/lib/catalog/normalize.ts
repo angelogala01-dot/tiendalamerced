@@ -11,6 +11,7 @@ export function normalizeProduct(product: Product): Product {
     ...product,
     category: normalizeRelation(product.category) ?? undefined,
     brand: normalizeRelation(product.brand) ?? undefined,
+    supplier: normalizeRelation(product.supplier) ?? undefined,
   };
 }
 

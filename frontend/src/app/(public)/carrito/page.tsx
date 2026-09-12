@@ -9,6 +9,7 @@ import { PUBLIC_ROUTES } from '@/constants/routes';
 import { cn } from '@/lib/utils';
 import { OrderTotalsSummary, useOrderTotals } from '@/components/public/order-totals-summary';
 import { CartLineItem } from '@/components/public/cart-line-item';
+import { cartLineKey } from '@/lib/catalog/variants';
 
 export default function CarritoPage() {
   const { items, updateQuantity, removeItem, total, clearCart, itemCount } = useCart();
@@ -53,7 +54,7 @@ export default function CarritoPage() {
         <div className="space-y-3">
           {items.map((item) => (
             <CartLineItem
-              key={item.productId}
+              key={cartLineKey(item)}
               item={item}
               onUpdateQuantity={updateQuantity}
               onRemove={removeItem}

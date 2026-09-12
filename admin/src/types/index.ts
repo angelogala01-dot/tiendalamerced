@@ -25,11 +25,28 @@ export interface Category {
   is_active: boolean;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  tax_id: string | null;
+  notes: string | null;
+  is_active: boolean;
+  product_count?: number;
+  brand_count?: number;
+}
+
 export interface Brand {
   id: string;
   name: string;
   slug: string;
   logo_url: string | null;
+  is_active?: boolean;
+  supplier_id?: string | null;
+  supplier?: Pick<Supplier, 'id' | 'name'> | null;
 }
 
 export interface Product {
@@ -45,7 +62,22 @@ export interface Product {
   is_active: boolean;
   category?: Category;
   brand?: Brand;
+  supplier?: Pick<Supplier, 'id' | 'name'> | null;
+  supplier_id?: string | null;
+  barcode?: string | null;
   images?: ProductImage[];
+  variants?: ProductVariant[];
+  matched_variant?: ProductVariant;
+}
+
+export interface ProductVariant {
+  id: string;
+  sku?: string | null;
+  size?: string | null;
+  color?: string | null;
+  stock_quantity: number;
+  barcode?: string | null;
+  is_active?: boolean;
 }
 
 export interface ProductImage {
@@ -155,6 +187,7 @@ export interface Invoice {
   order_id?: string | null;
   sale_id?: string | null;
   client_name?: string | null;
+  client_document_type?: string | null;
   client_document_number?: string | null;
   total: number;
   pdf_url?: string | null;
@@ -177,6 +210,7 @@ export interface InventoryMovement {
   notes: string | null;
   created_at: string;
   product?: { id: string; sku: string; name: string };
+  variant?: { id: string; size?: string | null; color?: string | null } | null;
 }
 
 export interface FaqEntry {

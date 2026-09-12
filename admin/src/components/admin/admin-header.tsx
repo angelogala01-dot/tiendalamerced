@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Menu, Search, Bell, Moon, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Menu, Search, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,21 +14,70 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { AdminNavContent } from '@/components/admin/admin-nav-content';
 import { ADMIN_ROUTES } from '@/constants/routes';
+import { ROLE_LABELS } from '@/lib/rbac';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import type { UserRole } from '@/types';
+
+type Account = {
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  roleLabel: string | null;
+};
+
+function initialsFrom(name: string, email: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  if (parts[0]) return parts[0].slice(0, 2).toUpperCase();
+  return (email[0] ?? 'U').toUpperCase();
+}
 
 export function AdminHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [themeReady, setThemeReady] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
+
+  useEffect(() => {
+    setThemeReady(true);
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(async ({ data }) => {
+      const user = data.user;
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const name =
+        (profile?.full_name as string | undefined)?.trim() ||
+        (typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '') ||
+        user.email?.split('@')[0] ||
+        'Cuenta';
+      const role = (profile?.role as UserRole | undefined) ?? (user.app_metadata?.role as UserRole | undefined);
+      setAccount({
+        name,
+        email: user.email ?? '',
+        avatarUrl: (profile?.avatar_url as string | null | undefined) ?? null,
+        roleLabel: role ? ROLE_LABELS[role] ?? role : null,
+      });
+    });
+  }, []);
 
   async function handleLogout() {
     await createClient().auth.signOut();
@@ -36,7 +85,7 @@ export function AdminHeader() {
     router.refresh();
   }
 
-  const isDark = resolvedTheme === 'dark';
+  const isDark = themeReady && resolvedTheme === 'dark';
 
   return (
     <header className="admin-glass sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-border/70 px-4 md:gap-4 md:px-6">
@@ -76,34 +125,11 @@ export function AdminHeader() {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
-          aria-label="Buscar"
-        >
-          <Search className="size-4" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
           aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
         >
           {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
-
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Notificaciones (3 sin leer)"
-          >
-            <Bell className="size-4" />
-          </Button>
-          <span
-            className="pointer-events-none absolute top-1.5 right-1.5 size-2 rounded-full bg-destructive ring-2 ring-card"
-            aria-hidden
-          />
-        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -111,13 +137,26 @@ export function AdminHeader() {
             aria-label="Menú de usuario"
           >
             <Avatar className="size-8">
+              {account?.avatarUrl ? <AvatarImage src={account.avatarUrl} alt="" /> : null}
               <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                LM
+                {account ? initialsFrom(account.name, account.email) : '…'}
               </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="font-normal">
+                <p className="truncate text-sm font-medium">{account?.name ?? 'Mi cuenta'}</p>
+                {account?.email ? (
+                  <p className="truncate text-xs font-normal text-muted-foreground">{account.email}</p>
+                ) : null}
+                {account?.roleLabel ? (
+                  <Badge variant="secondary" className="mt-2">
+                    {account.roleLabel}
+                  </Badge>
+                ) : null}
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {isDark ? 'Modo claro' : 'Modo oscuro'}

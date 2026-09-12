@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AdminAuth } from '../../common/decorators/staff-auth.decorator';
+import { ReportsAuth } from '../../common/decorators/staff-auth.decorator';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { User } from '@supabase/supabase-js';
@@ -25,25 +25,25 @@ export class PromotionsController {
   }
 
   @Get('admin')
-  @AdminAuth()
+  @ReportsAuth()
   findAll() {
     return this.service.findAll();
   }
 
   @Post()
-  @AdminAuth()
+  @ReportsAuth()
   create(@Body() dto: CreatePromotionDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
-  @AdminAuth()
+  @ReportsAuth()
   update(@Param('id') id: string, @Body() dto: UpdatePromotionDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @AdminAuth()
+  @ReportsAuth()
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

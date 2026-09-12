@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDocumentLookup } from '@/hooks/use-document-lookup';
+import { restrictDigits } from '@/lib/validation/peru';
 
 type EmitInvoiceDialogProps = {
   open: boolean;
@@ -26,10 +27,46 @@ type EmitInvoiceDialogProps = {
   defaultKind?: 'boleta' | 'factura';
   defaultDocumentNumber?: string;
   defaultLegalName?: string;
+  lockKind?: boolean;
+  title?: string;
 };
 
 export function issuedInvoice(invoices?: Invoice[] | null) {
   return invoices?.find((item) => item.status === 'issued') ?? invoices?.[0] ?? null;
+}
+
+export function voucherFromSale(sale?: {
+  customer?: { full_name?: string | null; document_number?: string | null } | null;
+  invoices?: Invoice[] | null;
+} | null) {
+  const invoice = issuedInvoice(sale?.invoices);
+  const storedName = invoice?.client_name?.trim();
+  const generic = !storedName || storedName === 'CLIENTES VARIOS';
+  return {
+    kind: (invoice?.document_kind ?? 'boleta') as 'boleta' | 'factura',
+    documentNumber: invoice?.client_document_number || sale?.customer?.document_number || '',
+    legalName: generic ? sale?.customer?.full_name || '' : storedName,
+  };
+}
+
+export function saleCustomerLabel(sale: {
+  customer?: { full_name?: string | null } | null;
+  invoices?: Invoice[] | null;
+}) {
+  const invoiceName = sale.invoices?.[0]?.client_name?.trim();
+  const name =
+    sale.customer?.full_name?.trim() ||
+    (invoiceName && invoiceName !== 'CLIENTES VARIOS' ? invoiceName : '');
+  return name || 'Mostrador';
+}
+
+export function needsInvoiceIdentityForm(
+  kind: 'boleta' | 'factura',
+  documentNumber: string,
+  legalName: string,
+) {
+  if (kind !== 'factura') return false;
+  return documentNumber.replace(/\D/g, '').length !== 11 || legalName.trim().length < 3;
 }
 
 export function EmitInvoiceDialog({
@@ -40,6 +77,8 @@ export function EmitInvoiceDialog({
   defaultKind = 'boleta',
   defaultDocumentNumber = '',
   defaultLegalName = '',
+  lockKind = false,
+  title = 'Emitir comprobante',
 }: EmitInvoiceDialogProps) {
   const { api } = useApi();
   const queryClient = useQueryClient();
@@ -103,9 +142,11 @@ export function EmitInvoiceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Emitir comprobante</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Se enviará a SUNAT a través de Nubefact (boleta o factura electrónica).
+            {lockKind
+              ? `Se emitirá ${kind === 'factura' ? 'una factura' : 'una boleta'} electrónica con los datos de la compra.`
+              : 'Se enviará a SUNAT a través de Nubefact (boleta o factura electrónica).'}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -116,6 +157,11 @@ export function EmitInvoiceDialog({
             emitMutation.mutate();
           }}
         >
+          {lockKind ? (
+            <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm font-medium">
+              {kind === 'factura' ? 'Factura' : 'Boleta'}
+            </p>
+          ) : (
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
@@ -132,6 +178,7 @@ export function EmitInvoiceDialog({
               Factura
             </Button>
           </div>
+          )}
           {kind === 'factura' ? (
             <>
               <div className="space-y-2">
@@ -139,9 +186,10 @@ export function EmitInvoiceDialog({
                 <Input
                   id="emit-ruc"
                   value={documentNumber}
-                  onChange={(e) => setDocumentNumber(e.target.value)}
+                  onChange={(e) => setDocumentNumber(restrictDigits(e.target.value, 11))}
                   placeholder="20XXXXXXXXX"
                   inputMode="numeric"
+                  maxLength={11}
                   required
                 />
               </div>
@@ -163,9 +211,10 @@ export function EmitInvoiceDialog({
                 <Input
                   id="emit-dni"
                   value={documentNumber}
-                  onChange={(e) => setDocumentNumber(e.target.value)}
+                  onChange={(e) => setDocumentNumber(restrictDigits(e.target.value, 8))}
                   placeholder="12345678 — vacío = consumidor final"
                   inputMode="numeric"
+                  maxLength={8}
                 />
               </div>
               {documentNumber.replace(/\D/g, '').length === 8 ? (

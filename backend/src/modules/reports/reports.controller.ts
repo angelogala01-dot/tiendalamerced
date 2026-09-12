@@ -1,11 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { ReportsAuth } from '../../common/decorators/staff-auth.decorator';
 import { ReportsService } from './reports.service';
 
 @ApiTags('reports')
 @Controller('reports')
-@StaffAuth()
+@ReportsAuth()
 export class ReportsController {
   constructor(private readonly service: ReportsService) {}
 

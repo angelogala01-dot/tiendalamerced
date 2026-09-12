@@ -143,7 +143,22 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Teléfono (opcional)</Label>
-                <Input id="phone" type="tel" autoComplete="tel" {...register('phone')} />
+                <Input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={9}
+                  placeholder="9XXXXXXXX"
+                  {...register('phone', {
+                    onChange: (event) => {
+                      event.target.value = event.target.value.replace(/\D/g, '').slice(0, 9);
+                    },
+                  })}
+                />
+                {errors.phone ? (
+                  <p className="text-sm text-destructive" role="alert">{errors.phone.message}</p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Contraseña</Label>

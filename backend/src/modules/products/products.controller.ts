@@ -6,14 +6,16 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { CatalogAuth, StaffAuth } from '../../common/decorators/staff-auth.decorator';
 import { ProductsService } from './products.service';
 import {
   AddProductImageDto,
   CreateProductDto,
+  ReplaceProductVariantsDto,
   UpdateProductDto,
   UpdateProductImageDto,
 } from './dto/product.dto';
@@ -91,31 +93,37 @@ export class ProductsController {
   }
 
   @Post()
-  @StaffAuth()
+  @CatalogAuth()
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }
 
   @Patch(':id')
-  @StaffAuth()
+  @CatalogAuth()
   update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     return this.productsService.update(id, dto);
   }
 
+  @Put(':id/variants')
+  @CatalogAuth()
+  replaceVariants(@Param('id') id: string, @Body() dto: ReplaceProductVariantsDto) {
+    return this.productsService.replaceVariants(id, dto.variants ?? []);
+  }
+
   @Delete(':id')
-  @StaffAuth()
+  @CatalogAuth()
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }
 
   @Post(':id/images')
-  @StaffAuth()
+  @CatalogAuth()
   addImage(@Param('id') id: string, @Body() dto: AddProductImageDto) {
     return this.productsService.addImage(id, dto);
   }
 
   @Patch(':id/images/:imageId')
-  @StaffAuth()
+  @CatalogAuth()
   updateImage(
     @Param('id') id: string,
     @Param('imageId') imageId: string,
@@ -125,7 +133,7 @@ export class ProductsController {
   }
 
   @Delete(':id/images/:imageId')
-  @StaffAuth()
+  @CatalogAuth()
   removeImage(@Param('id') id: string, @Param('imageId') imageId: string) {
     return this.productsService.removeImage(id, imageId);
   }

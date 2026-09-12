@@ -1,6 +1,3 @@
-'use client';
-
-import { motion, useReducedMotion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -11,24 +8,8 @@ type RevealProps = {
   y?: number;
 };
 
-export function Reveal({ children, className, delay = 0, y = 28 }: RevealProps) {
-  const reduce = useReducedMotion();
-
-  if (reduce) {
-    return <div className={className}>{children}</div>;
-  }
-
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-64px' }}
-      transition={{ duration: 0.65, delay, ease: [0.22, 1, 0.36, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+export function Reveal({ children, className }: RevealProps) {
+  return <div className={className}>{children}</div>;
 }
 
 export function RevealStagger({
@@ -38,33 +19,10 @@ export function RevealStagger({
   children: ReactNode;
   className?: string;
 }) {
-  const reduce = useReducedMotion();
-
-  if (reduce) {
-    return <div className={className}>{children}</div>;
-  }
-
-  return (
-    <motion.div
-      className={cn(className)}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: '-48px' }}
-      variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: 0.08 } },
-      }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={cn(className)}>{children}</div>;
 }
 
 export const revealItem = {
-  hidden: { opacity: 0, y: 22 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
-  },
+  hidden: { opacity: 1, y: 0 },
+  show: { opacity: 1, y: 0 },
 };

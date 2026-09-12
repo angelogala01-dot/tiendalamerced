@@ -1,14 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, FileText } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink, FileText, RotateCcw } from 'lucide-react';
+import { toast } from 'sonner';
 import { useApi } from '@/hooks/use-api';
 import type { Invoice } from '@/types';
 import { PageHeader } from '@/components/admin/page-header';
 import { DataTableShell } from '@/components/admin/data-table-shell';
+import {
+  EmitInvoiceDialog,
+  needsInvoiceIdentityForm,
+} from '@/components/admin/emit-invoice-dialog';
 import { Badge } from '@/components/ui/badge';
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -40,14 +45,63 @@ const statusVariant: Record<Invoice['status'], 'default' | 'secondary' | 'destru
   error: 'destructive',
 };
 
+function canRetry(invoice: Invoice) {
+  return (
+    (invoice.status === 'error' || invoice.status === 'pending' || invoice.status === 'rejected') &&
+    Boolean(invoice.order_id || invoice.sale_id)
+  );
+}
+
 export default function AdminComprobantesPage() {
   const { api } = useApi();
+  const queryClient = useQueryClient();
   const [kindFilter, setKindFilter] = useState<string>('all');
+  const [retrying, setRetrying] = useState<Invoice | null>(null);
 
   const { data: invoices = [], isLoading, isError, error } = useQuery({
     queryKey: ['admin-invoices'],
     queryFn: () => api<Invoice[]>('/billing'),
   });
+
+  const retryMutation = useMutation({
+    mutationFn: (invoice: Invoice) =>
+      api<Invoice>('/billing/emit', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: invoice.document_kind,
+          order_id: invoice.order_id || undefined,
+          sale_id: invoice.sale_id || undefined,
+          document_type: invoice.client_document_type || undefined,
+          document_number: invoice.client_document_number || undefined,
+          legal_name: invoice.client_name || undefined,
+        }),
+      }),
+    onSuccess: (invoice) => {
+      toast.success(
+        invoice.status === 'issued' ? 'Comprobante reemitido' : 'Comprobante actualizado',
+      );
+      queryClient.invalidateQueries({ queryKey: ['admin-invoices'] });
+      if (invoice.pdf_url) {
+        window.open(invoice.pdf_url, '_blank', 'noopener,noreferrer');
+      }
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  function handleRetry(invoice: Invoice) {
+    if (
+      invoice.document_kind === 'factura' &&
+      needsInvoiceIdentityForm(
+        'factura',
+        invoice.client_document_number ?? '',
+        invoice.client_name ?? '',
+      )
+    ) {
+      setRetrying(invoice);
+      return;
+    }
+    retryMutation.mutate(invoice);
+  }
 
   const filtered = invoices.filter((invoice) =>
     kindFilter === 'all' ? true : invoice.document_kind === kindFilter,
@@ -96,7 +150,7 @@ export default function AdminComprobantesPage() {
                   <TableHead scope="col">Origen</TableHead>
                   <TableHead scope="col" className="text-right">Total</TableHead>
                   <TableHead scope="col">Estado</TableHead>
-                  <TableHead scope="col" className="text-right">PDF</TableHead>
+                  <TableHead scope="col" className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -135,19 +189,33 @@ export default function AdminComprobantesPage() {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-right">
-                      {invoice.pdf_url ? (
-                        <a
-                          href={invoice.pdf_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
-                          aria-label="Abrir PDF"
-                        >
-                          <ExternalLink className="size-4" />
-                        </a>
-                      ) : (
-                        <FileText className="ml-auto size-4 text-muted-foreground" />
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {canRetry(invoice) ? (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="gap-1"
+                            disabled={retryMutation.isPending && retryMutation.variables?.id === invoice.id}
+                            onClick={() => handleRetry(invoice)}
+                          >
+                            <RotateCcw className="size-3.5" />
+                            Reemitir
+                          </Button>
+                        ) : null}
+                        {invoice.pdf_url ? (
+                          <a
+                            href={invoice.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+                            aria-label="Abrir PDF"
+                          >
+                            <ExternalLink className="size-4" />
+                          </a>
+                        ) : (
+                          <FileText className="size-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -160,6 +228,24 @@ export default function AdminComprobantesPage() {
           </p>
         )}
       </DataTableShell>
+
+      <EmitInvoiceDialog
+        open={Boolean(retrying)}
+        onOpenChange={(open) => {
+          if (!open) setRetrying(null);
+        }}
+        title="Reemitir comprobante"
+        lockKind
+        orderId={retrying?.order_id ?? undefined}
+        saleId={retrying?.sale_id ?? undefined}
+        defaultKind={retrying?.document_kind ?? 'boleta'}
+        defaultDocumentNumber={retrying?.client_document_number ?? ''}
+        defaultLegalName={
+          retrying?.client_name && retrying.client_name !== 'CLIENTES VARIOS'
+            ? retrying.client_name
+            : ''
+        }
+      />
     </div>
   );
 }

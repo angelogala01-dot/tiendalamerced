@@ -9,13 +9,17 @@ import { toast } from 'sonner';
 import { useApi } from '@/hooks/use-api';
 import type { Product, ProductImage } from '@/types';
 import { PageHeader } from '@/components/admin/page-header';
+import { CatalogSwitcher } from '@/components/admin/catalog-switcher';
+import { CatalogGuidance } from '@/components/admin/catalog-guidance';
 import { DataTableShell } from '@/components/admin/data-table-shell';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { EntitySelect, getBrandLabel } from '@/components/admin/entity-select';
 import { ImageUpload } from '@/components/admin/image-upload';
 import { ProductImageGallery } from '@/components/admin/product-image-gallery';
+import { ProductVariantsEditor } from '@/components/admin/product-variants-editor';
 import { getPrimaryImageUrl } from '@/lib/catalog/product-images';
 import { normalizeProduct } from '@/lib/catalog/normalize';
+import { draftsFromProduct, type VariantDraft } from '@/lib/catalog/variants';
 import {
   productFormSchema,
   validateImageFile,
@@ -58,10 +62,12 @@ const defaultValues: ProductFormValues = {
   description: '',
   category_id: '',
   brand_id: '',
+  supplier_id: '',
   cost_price: 0,
   sale_price: 0,
   stock_quantity: 0,
   min_stock: 5,
+  barcode: '',
   is_active: true,
 };
 
@@ -89,6 +95,7 @@ export default function AdminProductosPage() {
   const [pendingImages, setPendingImages] = useState<
     Array<{ url: string; storage_path: string; id: string }>
   >([]);
+  const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema) as Resolver<ProductFormValues>,
@@ -99,12 +106,12 @@ export default function AdminProductosPage() {
   const brandId = form.watch('brand_id');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', { lite: true, limit: 100 }],
+    queryKey: ['admin-products', 'lite'],
     queryFn: async () => {
-      const res = await api<{ data: Product[] }>('/products?lite=true&limit=100');
+      const res = await api<{ data: Product[] }>('/products?lite=true&limit=200');
       return { data: (res.data ?? []).map(normalizeProduct) };
     },
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: categories = [] } = useQuery({
@@ -116,6 +123,12 @@ export default function AdminProductosPage() {
   const { data: brands = [] } = useQuery({
     queryKey: ['admin-brands'],
     queryFn: () => api<Array<{ id: string; name: string; slug: string }>>('/brands'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['admin-suppliers'],
+    queryFn: () => api<Array<{ id: string; name: string }>>('/suppliers'),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -148,10 +161,12 @@ export default function AdminProductosPage() {
         description: values.description?.trim() || undefined,
         category_id: values.category_id,
         brand_id: values.brand_id,
+        supplier_id: values.supplier_id || null,
         cost_price: values.cost_price,
         sale_price: values.sale_price,
         stock_quantity: values.stock_quantity,
         min_stock: values.min_stock,
+        barcode: values.barcode?.trim() || null,
         ...(editing ? { is_active: values.is_active ?? true } : {}),
       };
 
@@ -176,6 +191,20 @@ export default function AdminProductosPage() {
           }),
         });
       }
+
+      const variants = variantDrafts
+        .filter((row) => row.size.trim() || row.color.trim())
+        .map((row) => ({
+          id: row.id,
+          size: row.size.trim() || undefined,
+          color: row.color.trim() || undefined,
+          stock_quantity: Number(row.stock_quantity) || 0,
+          barcode: row.barcode.trim() || undefined,
+        }));
+      product = await api<Product>(`/products/${product.id}/variants`, {
+        method: 'PUT',
+        body: JSON.stringify({ variants }),
+      });
 
       return product;
     },
@@ -204,6 +233,7 @@ export default function AdminProductosPage() {
     setSkuManual(false);
     setProductImages([]);
     setPendingImages([]);
+    setVariantDrafts([]);
     form.reset(defaultValues);
   }
 
@@ -212,6 +242,7 @@ export default function AdminProductosPage() {
     setSkuManual(false);
     setProductImages([]);
     setPendingImages([]);
+    setVariantDrafts([]);
     form.reset(defaultValues);
     setDialogOpen(true);
   }
@@ -227,14 +258,17 @@ export default function AdminProductosPage() {
       description: normalized.description ?? '',
       category_id: normalized.category?.id ?? '',
       brand_id: normalized.brand?.id ?? '',
+      supplier_id: normalized.supplier?.id ?? normalized.supplier_id ?? '',
       cost_price: Number(normalized.cost_price),
       sale_price: Number(normalized.sale_price),
       stock_quantity: normalized.stock_quantity,
       min_stock: normalized.min_stock,
+      barcode: normalized.barcode ?? '',
       is_active: normalized.is_active,
     });
     setProductImages(normalized.images ?? []);
     setPendingImages([]);
+    setVariantDrafts(draftsFromProduct(normalized));
     setDialogOpen(true);
   }
 
@@ -322,15 +356,22 @@ export default function AdminProductosPage() {
       }));
 
   const errors = form.formState.errors;
+  const hasVariantRows = variantDrafts.some((row) => row.size.trim() || row.color.trim());
 
   return (
     <div className="admin-page-enter space-y-6">
-      <PageHeader title="Productos" description="Gestión del catálogo de productos">
+      <PageHeader
+        title="Productos"
+        description="Alta de SKU con categoría, marca y proveedor. El stock se ajusta luego en Inventario."
+      >
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
           <Plus className="size-4" aria-hidden />
           Nuevo producto
         </Button>
       </PageHeader>
+
+      <CatalogSwitcher />
+      <CatalogGuidance page="products" />
 
       <DataTableShell
         title="Listado de productos"
@@ -347,6 +388,7 @@ export default function AdminProductosPage() {
                   <TableHead scope="col">SKU</TableHead>
                   <TableHead scope="col">Nombre</TableHead>
                   <TableHead scope="col">Marca</TableHead>
+                  <TableHead scope="col">Proveedor</TableHead>
                   <TableHead scope="col" className="text-right">Precio</TableHead>
                   <TableHead scope="col" className="text-right">Stock</TableHead>
                   <TableHead scope="col">Estado</TableHead>
@@ -373,6 +415,7 @@ export default function AdminProductosPage() {
                       <TableCell className="font-mono text-xs text-muted-foreground">{p.sku}</TableCell>
                       <TableCell className="font-medium">{p.name}</TableCell>
                       <TableCell className="text-sm">{getBrandLabel(p.brand)}</TableCell>
+                      <TableCell className="text-sm">{p.supplier?.name?.trim() || '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         S/ {Number(p.sale_price).toFixed(2)}
                       </TableCell>
@@ -481,6 +524,16 @@ export default function AdminProductosPage() {
               />
             </div>
 
+            <EntitySelect
+              label="Proveedor"
+              value={form.watch('supplier_id') ?? ''}
+              onChange={(v) => form.setValue('supplier_id', v, { shouldValidate: true })}
+              items={suppliers}
+              placeholder="Seleccione proveedor"
+              emptyLabel="Sin proveedor"
+              error={errors.supplier_id?.message}
+            />
+
             <div className="space-y-2">
               <Label htmlFor="product-desc">Descripción</Label>
               <textarea
@@ -506,8 +559,18 @@ export default function AdminProductosPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="product-stock">Stock <span className="text-destructive">*</span></Label>
-                <Input id="product-stock" type="number" min="0" {...form.register('stock_quantity')} aria-invalid={!!errors.stock_quantity} />
+                <Label htmlFor="product-stock">Stock {hasVariantRows ? '' : <span className="text-destructive">*</span>}</Label>
+                <Input
+                  id="product-stock"
+                  type="number"
+                  min="0"
+                  disabled={hasVariantRows}
+                  {...form.register('stock_quantity')}
+                  aria-invalid={!!errors.stock_quantity}
+                />
+                {hasVariantRows ? (
+                  <p className="text-xs text-muted-foreground">El stock se suma desde las tallas/colores.</p>
+                ) : null}
                 {errors.stock_quantity ? <p className="text-sm text-destructive">{errors.stock_quantity.message}</p> : null}
               </div>
               <div className="space-y-2">
@@ -515,6 +578,19 @@ export default function AdminProductosPage() {
                 <Input id="product-min" type="number" min="0" {...form.register('min_stock')} aria-invalid={!!errors.min_stock} />
                 {errors.min_stock ? <p className="text-sm text-destructive">{errors.min_stock.message}</p> : null}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="product-barcode">Código de barras</Label>
+              <Input
+                id="product-barcode"
+                {...form.register('barcode')}
+                placeholder="EAN / UPC del producto (opcional)"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Si hay tallas, conviene poner el código en cada talla, no aquí.
+              </p>
             </div>
 
             {editing ? (
@@ -529,6 +605,8 @@ export default function AdminProductosPage() {
                 <Label htmlFor="product-active">Producto activo</Label>
               </div>
             ) : null}
+
+            <ProductVariantsEditor drafts={variantDrafts} onChange={setVariantDrafts} />
 
             <div className="space-y-3 border-t pt-4">
               <Label>Imágenes del producto</Label>

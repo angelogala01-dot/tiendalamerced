@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,10 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:la_merced_mobile/core/api/api_client.dart';
+import 'package:la_merced_mobile/core/navigation/staff_actions.dart';
 import 'package:la_merced_mobile/core/theme/app_theme.dart';
 
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key, required this.active});
+  const ScanScreen({super.key, this.active = true});
 
   final bool active;
 
@@ -128,13 +129,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       } catch (_) {}
       _manual.text = value;
       setState(() => _matches = []);
-      await showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        backgroundColor: AppColors.cream,
-        builder: (_) => _ProductSheet(product: product),
-      );
+      await showProductSheet(context, product);
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -209,10 +204,10 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     children: [
                       const Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 42),
                       const SizedBox(height: 12),
-                      Text(
+                      const Text(
                         'Activa la cámara para escanear. En Chrome: candado → Cámara → Permitir.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: Colors.white),
                       ),
                       const SizedBox(height: 16),
                       FilledButton(onPressed: _startCamera, child: const Text('Abrir cámara')),
@@ -311,7 +306,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                       title: Text(p['name']?.toString() ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: Text('SKU ${p['sku']} · S/ ${p['sale_price']}'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _lookup(p['sku']?.toString() ?? p['barcode']?.toString() ?? ''),
+                      onTap: () => showProductSheet(context, Map<String, dynamic>.from(p)),
                     ),
                   );
                 },
@@ -330,18 +325,6 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     return Scaffold(
       appBar: AppBar(
         title: const Text('Escanear producto'),
-        actions: [
-          if (kIsWeb)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: Text(
-                  'En PC puedes buscar por SKU',
-                  style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 12),
-                ),
-              ),
-            ),
-        ],
       ),
       body: wide
           ? Row(
@@ -402,7 +385,7 @@ class _ScanFramePainter extends CustomPainter {
 
     final y = 16 + (size.height - 32) * progress;
     final line = Paint()
-      ..color = AppColors.clay.withOpacity(0.9)
+      ..color = AppColors.clay.withValues(alpha: 0.9)
       ..strokeWidth = 2;
     canvas.drawLine(Offset(18, y), Offset(size.width - 18, y), line);
   }
@@ -411,90 +394,3 @@ class _ScanFramePainter extends CustomPainter {
   bool shouldRepaint(covariant _ScanFramePainter oldDelegate) => oldDelegate.progress != progress;
 }
 
-class _ProductSheet extends StatelessWidget {
-  const _ProductSheet({required this.product});
-
-  final Map<String, dynamic> product;
-
-  @override
-  Widget build(BuildContext context) {
-    final stock = num.tryParse('${product['stock_quantity']}') ?? 0;
-    final minStock = num.tryParse('${product['min_stock']}') ?? 0;
-    final low = stock <= minStock;
-    final images = product['images'];
-    String? imageUrl;
-    if (images is List && images.isNotEmpty && images.first is Map) {
-      imageUrl = (images.first as Map)['url']?.toString();
-    }
-    final maxW = MediaQuery.sizeOf(context).width;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(maxW > 600 ? 32 : 20, 8, maxW > 600 ? 32 : 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (imageUrl != null && imageUrl.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(imageUrl, height: 140, width: double.infinity, fit: BoxFit.cover),
-            ),
-          const SizedBox(height: 12),
-          Text(
-            product['name']?.toString() ?? 'Producto',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text('SKU ${product['sku'] ?? '—'}'),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _Info(label: 'Precio', value: 'S/ ${product['sale_price']}', color: AppColors.clay),
-              const SizedBox(width: 10),
-              _Info(
-                label: low ? 'Stock bajo' : 'Disponible',
-                value: '$stock und.',
-                color: low ? const Color(0xFFB42318) : AppColors.moss,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            low
-                ? 'Avísale al cliente que queda poco. Revisa reposición en almacén.'
-                : 'Puedes venderlo con confianza: hay unidades en tienda.',
-            style: TextStyle(color: Colors.grey[700]),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Info extends StatelessWidget {
-  const _Info({required this.label, required this.value, required this.color});
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-            Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800)),
-          ],
-        ),
-      ),
-    );
-  }
-}

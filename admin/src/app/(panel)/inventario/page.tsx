@@ -6,7 +6,10 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApi } from '@/hooks/use-api';
 import type { InventoryMovement, Product } from '@/types';
+import { variantLabel } from '@/lib/catalog/variants';
 import { PageHeader } from '@/components/admin/page-header';
+import { CatalogSwitcher } from '@/components/admin/catalog-switcher';
+import { CatalogGuidance } from '@/components/admin/catalog-guidance';
 import { DataTableShell } from '@/components/admin/data-table-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +50,7 @@ export default function AdminInventarioPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [productId, setProductId] = useState('');
+  const [variantId, setVariantId] = useState('');
   const [movementType, setMovementType] = useState<'entry' | 'exit' | 'adjustment'>('entry');
   const [quantity, setQuantity] = useState('1');
   const [notes, setNotes] = useState('');
@@ -57,12 +61,16 @@ export default function AdminInventarioPage() {
   });
 
   const { data: productsData } = useQuery({
-    queryKey: ['admin-products', { lite: true, limit: 200 }],
+    queryKey: ['admin-products', 'lite'],
     queryFn: () => api<{ data: Product[] }>('/products?lite=true&limit=200'),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const products = productsData?.data ?? [];
+  const selectedProduct = products.find((p) => p.id === productId);
+  const selectedProductLabel = selectedProduct
+    ? [selectedProduct.sku, selectedProduct.name].filter(Boolean).join(' — ')
+    : '';
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -70,6 +78,7 @@ export default function AdminInventarioPage() {
         method: 'POST',
         body: JSON.stringify({
           product_id: productId,
+          variant_id: variantId || undefined,
           movement_type: movementType,
           quantity: Number(quantity),
           notes: notes.trim() || undefined,
@@ -81,6 +90,7 @@ export default function AdminInventarioPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       setDialogOpen(false);
       setProductId('');
+      setVariantId('');
       setQuantity('1');
       setNotes('');
       setMovementType('entry');
@@ -90,12 +100,18 @@ export default function AdminInventarioPage() {
 
   return (
     <div className="admin-page-enter space-y-6">
-      <PageHeader title="Inventario" description="Movimientos de almacén y kardex">
+      <PageHeader
+        title="Inventario"
+        description="Kardex: entradas, salidas y ajustes sobre productos ya creados."
+      >
         <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
           <Plus className="size-4" aria-hidden />
           Registrar movimiento
         </Button>
       </PageHeader>
+
+      <CatalogSwitcher />
+      <CatalogGuidance page="inventory" />
 
       <DataTableShell
         title="Historial de movimientos"
@@ -125,6 +141,9 @@ export default function AdminInventarioPage() {
                     <div>
                       <p className="font-medium">{m.product?.name ?? '—'}</p>
                       <p className="font-mono text-xs text-muted-foreground">{m.product?.sku}</p>
+                      {m.variant?.size || m.variant?.color ? (
+                        <p className="text-xs text-muted-foreground">{variantLabel(m.variant)}</p>
+                      ) : null}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -156,6 +175,11 @@ export default function AdminInventarioPage() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!productId) { toast.error('Selecciona un producto'); return; }
+              const variants = (selectedProduct?.variants ?? []).filter((item) => item.is_active !== false);
+              if (variants.length && !variantId) {
+                toast.error('Elige talla o color');
+                return;
+              }
               if (Number(quantity) <= 0) { toast.error('La cantidad debe ser mayor a 0'); return; }
               createMutation.mutate();
             }}
@@ -163,9 +187,17 @@ export default function AdminInventarioPage() {
           >
             <div className="space-y-2">
               <Label htmlFor="inv-product">Producto</Label>
-              <Select value={productId} onValueChange={(v) => setProductId(v ?? '')}>
+              <Select
+                value={productId || undefined}
+                onValueChange={(v) => {
+                  setProductId(v ?? '');
+                  setVariantId('');
+                }}
+              >
                 <SelectTrigger id="inv-product" className="w-full" aria-label="Producto">
-                  <SelectValue placeholder="Seleccionar producto" />
+                  <SelectValue placeholder="Seleccionar producto">
+                    {selectedProductLabel || undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
@@ -176,11 +208,37 @@ export default function AdminInventarioPage() {
                 </SelectContent>
               </Select>
             </div>
+            {(selectedProduct?.variants ?? []).filter((item) => item.is_active !== false).length > 0 ? (
+              <div className="space-y-2">
+                <Label htmlFor="inv-variant">Talla / color</Label>
+                <Select value={variantId || undefined} onValueChange={(v) => setVariantId(v ?? '')}>
+                  <SelectTrigger id="inv-variant" className="w-full">
+                    <SelectValue placeholder="Seleccionar variante">
+                      {variantLabel(
+                        selectedProduct?.variants?.find((item) => item.id === variantId) ?? {
+                          size: '',
+                          color: '',
+                        },
+                      ) || undefined}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(selectedProduct?.variants ?? [])
+                      .filter((item) => item.is_active !== false)
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {variantLabel(item) || item.sku} — stock {item.stock_quantity}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="inv-type">Tipo de movimiento</Label>
               <Select value={movementType} onValueChange={(v) => v && setMovementType(v as typeof movementType)}>
                 <SelectTrigger id="inv-type" className="w-full">
-                  <SelectValue />
+                  <SelectValue>{movementLabels[movementType]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="entry">Entrada</SelectItem>

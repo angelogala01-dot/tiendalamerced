@@ -70,6 +70,10 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> requestPasswordReset(String email) async {
+    await _api.post('/auth/forgot-password', {'email': email.trim().toLowerCase()});
+  }
+
   Future<void> _loadProfile([User? user]) async {
     final uid = user?.id ?? Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) {

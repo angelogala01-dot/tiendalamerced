@@ -4,10 +4,10 @@ import { calculateOrderTotals, useStoreSettings } from '@/hooks/use-store-settin
 import { useWelcomeDiscount } from '@/hooks/use-welcome-discount';
 import { Badge } from '@/components/ui/badge';
 
-export function useOrderTotals(subtotal: number) {
+export function useOrderTotals(subtotal: number, pickup = false) {
   const { data: settings } = useStoreSettings();
   const { discount, promotion, eligible, missingForPromo } = useWelcomeDiscount(subtotal);
-  const totals = calculateOrderTotals(subtotal, settings!, discount);
+  const totals = calculateOrderTotals(subtotal, settings!, discount, pickup);
 
   return {
     ...totals,
@@ -17,7 +17,13 @@ export function useOrderTotals(subtotal: number) {
   };
 }
 
-export function OrderTotalsSummary({ subtotal }: { subtotal: number }) {
+export function OrderTotalsSummary({
+  subtotal,
+  pickup = false,
+}: {
+  subtotal: number;
+  pickup?: boolean;
+}) {
   const {
     shipping,
     total,
@@ -25,7 +31,7 @@ export function OrderTotalsSummary({ subtotal }: { subtotal: number }) {
     welcomePromotion,
     welcomeEligible,
     missingForPromo,
-  } = useOrderTotals(subtotal);
+  } = useOrderTotals(subtotal, pickup);
   const { data: settings } = useStoreSettings();
 
   return (
@@ -56,12 +62,12 @@ export function OrderTotalsSummary({ subtotal }: { subtotal: number }) {
       ) : null}
 
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Envío</span>
+        <span className="text-muted-foreground">{pickup ? 'Retiro' : 'Envío'}</span>
         <span className="tabular-nums">
-          {shipping === 0 ? 'Gratis' : `S/ ${shipping.toFixed(2)}`}
+          {pickup || shipping === 0 ? 'Gratis' : `S/ ${shipping.toFixed(2)}`}
         </span>
       </div>
-      {settings && subtotal - discount < settings.free_shipping_min && subtotal > 0 ? (
+      {!pickup && settings && subtotal - discount < settings.free_shipping_min && subtotal > 0 ? (
         <p className="text-xs text-muted-foreground">
           Envío gratis en compras desde S/ {settings.free_shipping_min.toFixed(2)}
         </p>

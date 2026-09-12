@@ -18,7 +18,13 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(error.message ?? 'Error en la solicitud');
+    const raw = (error as { message?: unknown }).message;
+    const message = Array.isArray(raw)
+      ? raw.join('. ')
+      : typeof raw === 'string'
+        ? raw
+        : res.statusText || 'Error en la solicitud';
+    throw new Error(message);
   }
 
   return res.json();
@@ -40,7 +46,13 @@ export async function apiUpload<T>(
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(error.message ?? 'Error al subir archivo');
+    const raw = (error as { message?: unknown }).message;
+    const message = Array.isArray(raw)
+      ? raw.join('. ')
+      : typeof raw === 'string'
+        ? raw
+        : res.statusText || 'Error al subir archivo';
+    throw new Error(message);
   }
 
   return res.json();

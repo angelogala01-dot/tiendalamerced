@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isOptionalPeruPhone, peruPhoneMessage } from '@/lib/validation/peru';
 
 /** Validación permisiva: acepta cualquier texto con @ (útil en desarrollo). */
 export const emailField = z
@@ -17,7 +18,10 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   full_name: z.string().min(2, 'Nombre requerido'),
   email: emailField,
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .optional()
+    .refine((value) => isOptionalPeruPhone(value), peruPhoneMessage()),
   password: z.string().min(6, 'Mínimo 6 caracteres'),
   confirm_password: z.string(),
 }).refine((d) => d.password === d.confirm_password, {
@@ -41,6 +45,22 @@ export const orderTrackSchema = z.object({
   order_number: z.string().min(5, 'Número de pedido inválido'),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: emailField,
+});
+
+export const updatePasswordSchema = z
+  .object({
+    password: z.string().min(6, 'Mínimo 6 caracteres'),
+    confirm_password: z.string(),
+  })
+  .refine((d) => d.password === d.confirm_password, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirm_password'],
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type UpdatePasswordInput = z.infer<typeof updatePasswordSchema>;

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-
-const STAFF_ROLES = ['super_admin', 'admin', 'manager', 'seller', 'warehouse'];
+import { STAFF_ROLES } from '@/constants/routes';
+import { canAccessPath, homeForRole, isStaffRole } from '@/lib/rbac';
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -44,22 +44,29 @@ export async function middleware(request: NextRequest) {
   }
 
   const metaRole = user.app_metadata?.role as string | undefined;
-  if (metaRole && STAFF_ROLES.includes(metaRole) && user.user_metadata?.is_active !== false) {
-    return supabaseResponse;
+  let role = metaRole;
+  let isActive = user.user_metadata?.is_active !== false;
+
+  if (!isStaffRole(role) || user.user_metadata?.is_active === false) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, is_active')
+      .eq('id', user.id)
+      .maybeSingle();
+    role = profile?.role ?? metaRole;
+    isActive = profile?.is_active ?? true;
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, is_active')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const role = profile?.role ?? metaRole;
-  const isActive = profile?.is_active ?? true;
-
-  if (!isActive || !role || !STAFF_ROLES.includes(role)) {
+  if (!isActive || !isStaffRole(role) || !STAFF_ROLES.includes(role)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  if (!canAccessPath(role, path)) {
+    const url = request.nextUrl.clone();
+    url.pathname = homeForRole(role);
+    url.search = '';
     return NextResponse.redirect(url);
   }
 
@@ -67,5 +74,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|login|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+  ],
 };

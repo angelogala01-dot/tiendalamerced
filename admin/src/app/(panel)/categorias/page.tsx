@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useApi } from '@/hooks/use-api';
 import type { Category } from '@/types';
 import { PageHeader } from '@/components/admin/page-header';
+import { CatalogSwitcher } from '@/components/admin/catalog-switcher';
 import { DataTableShell } from '@/components/admin/data-table-shell';
 import { ImageUpload } from '@/components/admin/image-upload';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
@@ -64,7 +65,7 @@ export default function AdminCategoriasPage() {
         name: form.name.trim(),
         slug: form.slug.trim() || slugify(form.name),
         description: form.description.trim() || undefined,
-        image_url: form.image_url.trim() || undefined,
+        image_url: form.image_url.trim() || null,
         ...(editing ? { is_active: form.is_active } : {}),
       };
       if (editing) {
@@ -116,12 +117,17 @@ export default function AdminCategoriasPage() {
 
   return (
     <div className="admin-page-enter space-y-6">
-      <PageHeader title="Categorías" description="Gestión de categorías del catálogo">
+      <PageHeader
+        title="Categorías"
+        description="Ordenan la tienda. Cada producto debe pertenecer a una categoría activa."
+      >
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
           <Plus className="size-4" aria-hidden />
           Nueva categoría
         </Button>
       </PageHeader>
+
+      <CatalogSwitcher />
 
       <DataTableShell
         title="Listado de categorías"
@@ -132,6 +138,7 @@ export default function AdminCategoriasPage() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead scope="col">Imagen</TableHead>
                 <TableHead scope="col">Nombre</TableHead>
                 <TableHead scope="col">Slug</TableHead>
                 <TableHead scope="col">Estado</TableHead>
@@ -141,6 +148,17 @@ export default function AdminCategoriasPage() {
             <TableBody>
               {categories.map((cat) => (
                 <TableRow key={cat.id}>
+                  <TableCell>
+                    {cat.image_url ? (
+                      <img
+                        src={cat.image_url}
+                        alt=""
+                        className="size-12 rounded-md object-cover ring-1 ring-border"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Sin foto</span>
+                    )}
+                  </TableCell>
                   <TableCell className="font-medium">{cat.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
                   <TableCell>

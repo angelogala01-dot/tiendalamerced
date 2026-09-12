@@ -10,6 +10,10 @@ import {
 } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import {
+  clearBrokenAuthSession,
+  isInvalidRefreshTokenError,
+} from '@/lib/supabase/auth-session';
 import type { Profile } from '@/types';
 
 type AuthContextValue = {
@@ -42,22 +46,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const refresh = useCallback(async () => {
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        void loadProfile(currentUser.id);
+  const applySessionUser = useCallback(
+    (nextUser: User | null) => {
+      setUser(nextUser);
+      if (nextUser) {
+        void loadProfile(nextUser.id);
       } else {
         setProfile(null);
       }
-    } catch {
-      setUser(null);
-      setProfile(null);
+    },
+    [loadProfile],
+  );
+
+  const refresh = useCallback(async () => {
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error && isInvalidRefreshTokenError(error)) {
+        await clearBrokenAuthSession(supabase);
+        applySessionUser(null);
+        return;
+      }
+      applySessionUser(data.session?.user ?? null);
+    } catch (error) {
+      if (isInvalidRefreshTokenError(error)) {
+        await clearBrokenAuthSession(supabase);
+      }
+      applySessionUser(null);
     }
-  }, [loadProfile]);
+  }, [applySessionUser]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -65,45 +82,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     void (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
         if (!mounted) return;
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        if (currentUser) {
-          void loadProfile(currentUser.id);
+
+        if (error && isInvalidRefreshTokenError(error)) {
+          await clearBrokenAuthSession(supabase);
+          applySessionUser(null);
+          return;
         }
-      } catch {
-        if (mounted) {
-          setUser(null);
-          setProfile(null);
+
+        applySessionUser(data.session?.user ?? null);
+      } catch (error) {
+        if (!mounted) return;
+        if (isInvalidRefreshTokenError(error)) {
+          await clearBrokenAuthSession(supabase);
         }
+        applySessionUser(null);
       } finally {
         if (mounted) setIsLoading(false);
       }
     })();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      const nextUser = session?.user ?? null;
-      setUser(nextUser);
-      if (nextUser) {
-        void loadProfile(nextUser.id);
-      } else {
-        setProfile(null);
-      }
-      setIsLoading(false);
 
       if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
+        applySessionUser(null);
+        setIsLoading(false);
+        return;
       }
+
+      applySessionUser(session?.user ?? null);
+      setIsLoading(false);
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [applySessionUser]);
 
   const signOut = useCallback(async () => {
     setUser(null);
@@ -115,11 +134,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Continuar con cierre local aunque falle el servidor
     }
 
+    const supabase = createClient();
     try {
-      const supabase = createClient();
-      await supabase.auth.signOut({ scope: 'global' });
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {
-      // Ignorar — la ruta del servidor ya limpió cookies
+      await clearBrokenAuthSession(supabase);
     }
   }, []);
 

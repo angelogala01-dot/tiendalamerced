@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { CatalogAuth } from '../../common/decorators/staff-auth.decorator';
 import { BrandsService } from './brands.service';
+import { CreateBrandDto, UpdateBrandDto } from './dto/brand.dto';
 
 @ApiTags('brands')
 @Controller('brands')
@@ -14,19 +15,19 @@ export class BrandsController {
   }
 
   @Post()
-  @StaffAuth()
-  create(@Body() body: { name: string; slug: string }) {
-    return this.service.create(body);
+  @CatalogAuth()
+  create(@Body() dto: CreateBrandDto) {
+    return this.service.create(dto);
   }
 
   @Patch(':id')
-  @StaffAuth()
-  update(@Param('id') id: string, @Body() body: { name?: string; slug?: string; is_active?: boolean }) {
-    return this.service.update(id, body);
+  @CatalogAuth()
+  update(@Param('id') id: string, @Body() dto: UpdateBrandDto) {
+    return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @StaffAuth()
+  @CatalogAuth()
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

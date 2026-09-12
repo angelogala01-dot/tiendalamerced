@@ -6,10 +6,14 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
 
 const nextConfig: NextConfig = {
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: supabaseHost },
     ],
+  },
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
   },
 };
 

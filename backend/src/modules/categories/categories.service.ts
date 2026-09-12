@@ -20,9 +20,13 @@ export class CategoriesService {
   }
 
   async update(id: string, body: UpdateCategoryDto) {
+    const payload = {
+      ...body,
+      ...('image_url' in body && !body.image_url?.trim() ? { image_url: null } : {}),
+    };
     const { data, error } = await this.supabase
       .from('categories')
-      .update(body)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();

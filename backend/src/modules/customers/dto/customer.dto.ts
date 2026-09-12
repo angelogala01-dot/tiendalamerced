@@ -1,5 +1,7 @@
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { IsPeruDocument, IsPeruPhone, toDigitsOrUndefined } from '../../../shared/validators/peru';
 
 export class CreateCustomerDto {
   @ApiProperty()
@@ -13,7 +15,8 @@ export class CreateCustomerDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruPhone()
   phone?: string;
 
   @ApiPropertyOptional()
@@ -23,7 +26,8 @@ export class CreateCustomerDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruDocument()
   document_number?: string;
 
   @ApiPropertyOptional()

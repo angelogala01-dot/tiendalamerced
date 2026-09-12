@@ -1,4 +1,6 @@
+import { Transform } from 'class-transformer';
 import { IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsPeruPhone, toDigitsOrUndefined } from '../../../shared/validators/peru';
 
 export class RegisterDto {
   @IsString()
@@ -15,6 +17,7 @@ export class RegisterDto {
   full_name?: string;
 
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruPhone()
   phone?: string;
 }

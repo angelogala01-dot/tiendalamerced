@@ -1,8 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminAuth } from '../../common/decorators/staff-auth.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { OptionalSupabaseAuthGuard } from '../../common/guards/optional-supabase-auth.guard';
 import { ChatbotService } from './chatbot.service';
 import { ChatDto } from './dto/chat.dto';
+import type { User } from '@supabase/supabase-js';
 
 @ApiTags('chatbot')
 @Controller('chatbot')
@@ -10,9 +13,10 @@ export class ChatbotController {
   constructor(private readonly service: ChatbotService) {}
 
   @Post('chat')
-  chat(@Body() body: ChatDto) {
+  @UseGuards(OptionalSupabaseAuthGuard)
+  chat(@Body() body: ChatDto, @CurrentUser() user?: User) {
     const sessionId = body.sessionId?.trim() || crypto.randomUUID();
-    return this.service.chat(body.message, sessionId);
+    return this.service.chat(body.message, sessionId, user?.id);
   }
 
   @Get('faq')

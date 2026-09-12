@@ -10,7 +10,7 @@ import { useCart } from '@/providers/cart-provider';
 import { useFavorites } from '@/providers/favorites-provider';
 import { getPrimaryImageUrl } from '@/lib/catalog/product-images';
 import { getBrandLabel, getCategoryLabel } from '@/lib/catalog/normalize';
-import { TiltCard } from '@/components/public/tilt-card';
+import { productHasVariants } from '@/lib/catalog/variants';
 import type { Product } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -22,11 +22,12 @@ interface ProductCardProps {
 export function ProductCard({ product, variant = 'default' }: ProductCardProps) {
   const { addItem } = useCart();
   const { toggle, isFavorite } = useFavorites();
-  const slug = product.slug ?? product.id;
+  const slug = product.slug?.trim() || product.id;
   const image = getPrimaryImageUrl(product.images);
   const brandName = getBrandLabel(product.brand);
   const categoryName = getCategoryLabel(product.category);
   const inStock = product.stock_quantity > 0;
+  const needsVariant = productHasVariants(product);
   const isBoutique = variant === 'boutique';
 
   const handleAdd = () =>
@@ -35,16 +36,16 @@ export function ProductCard({ product, variant = 'default' }: ProductCardProps) 
       name: product.name,
       price: Number(product.sale_price),
       image,
+      maxQuantity: product.stock_quantity,
     });
 
   return (
-    <TiltCard>
-      <article
-        className={cn(
-          'group shine-sweep overflow-hidden rounded-2xl bg-card ring-1 ring-border/70 transition-shadow duration-300 hover:shadow-[0_24px_50px_-24px_oklch(0.2_0.02_40/0.35)]',
-          isBoutique && 'bg-transparent ring-0 hover:shadow-none',
-        )}
-      >
+    <article
+      className={cn(
+        'group overflow-hidden rounded-2xl bg-card ring-1 ring-border/70 transition-shadow duration-200 hover:shadow-[0_24px_50px_-24px_oklch(0.2_0.02_40/0.35)]',
+        isBoutique && 'bg-transparent ring-0 hover:shadow-none',
+      )}
+    >
         <div className="relative">
           <Link href={PUBLIC_ROUTES.PRODUCT(slug)} className="block">
             <div
@@ -58,7 +59,7 @@ export function ProductCard({ product, variant = 'default' }: ProductCardProps) 
                   src={image}
                   alt={product.name}
                   fill
-                  className="object-cover transition duration-700 group-hover:scale-110"
+                  className="object-cover transition duration-300 group-hover:scale-105"
                   sizes="(max-width: 768px) 50vw, 25vw"
                 />
               ) : (
@@ -78,15 +79,24 @@ export function ProductCard({ product, variant = 'default' }: ProductCardProps) 
           </Link>
 
           <div className="absolute inset-x-3 bottom-3 flex translate-y-3 gap-2 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 max-md:translate-y-0 max-md:opacity-100">
-            <Button
-              size="sm"
-              className="flex-1 rounded-full bg-foreground/90 text-background backdrop-blur hover:bg-foreground"
-              disabled={!inStock}
-              onClick={handleAdd}
-            >
-              <ShoppingCart className="mr-1 h-4 w-4" />
-              Agregar
-            </Button>
+            {needsVariant ? (
+              <Link
+                href={PUBLIC_ROUTES.PRODUCT(slug)}
+                className="inline-flex h-8 flex-1 items-center justify-center rounded-full bg-foreground/90 px-3 text-sm font-medium text-background backdrop-blur hover:bg-foreground"
+              >
+                Elegir talla
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                className="flex-1 rounded-full bg-foreground/90 text-background backdrop-blur hover:bg-foreground"
+                disabled={!inStock}
+                onClick={handleAdd}
+              >
+                <ShoppingCart className="mr-1 h-4 w-4" />
+                Agregar
+              </Button>
+            )}
             <Link
               href={PUBLIC_ROUTES.PRODUCT(slug)}
               className="inline-flex size-8 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:bg-white"
@@ -135,6 +145,5 @@ export function ProductCard({ product, variant = 'default' }: ProductCardProps) 
           </p>
         </div>
       </article>
-    </TiltCard>
-  );
+    );
 }

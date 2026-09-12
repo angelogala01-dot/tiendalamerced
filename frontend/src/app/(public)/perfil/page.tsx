@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { isOptionalPeruPhone, peruPhoneMessage } from '@/lib/validation/peru';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { LogOut } from 'lucide-react';
@@ -21,10 +22,22 @@ import { useWelcomeDiscount } from '@/hooks/use-welcome-discount';
 
 const profileSchema = z.object({
   full_name: z.string().min(2, 'Nombre requerido'),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .optional()
+    .refine((value) => isOptionalPeruPhone(value), peruPhoneMessage()),
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
+
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin',
+  admin: 'Administrador',
+  manager: 'Gerente',
+  seller: 'Vendedor',
+  warehouse: 'Almacenero',
+  customer: 'Cliente',
+};
 
 export default function PerfilPage() {
   const router = useRouter();
@@ -110,6 +123,14 @@ export default function PerfilPage() {
               <Input id="email" value={profile?.email ?? ''} disabled aria-readonly="true" />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="role">Rol</Label>
+              <div className="flex h-9 items-center">
+                <Badge variant="secondary">
+                  {ROLE_LABELS[profile?.role ?? ''] ?? profile?.role ?? 'Cliente'}
+                </Badge>
+              </div>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="full_name">Nombre completo</Label>
               <Input id="full_name" {...form.register('full_name')} />
               {form.formState.errors.full_name ? (
@@ -120,7 +141,23 @@ export default function PerfilPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Teléfono</Label>
-              <Input id="phone" type="tel" {...form.register('phone')} />
+              <Input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                maxLength={9}
+                placeholder="9XXXXXXXX"
+                {...form.register('phone', {
+                  onChange: (event) => {
+                    event.target.value = event.target.value.replace(/\D/g, '').slice(0, 9);
+                  },
+                })}
+              />
+              {form.formState.errors.phone ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {form.formState.errors.phone.message}
+                </p>
+              ) : null}
             </div>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? 'Guardando…' : 'Guardar cambios'}

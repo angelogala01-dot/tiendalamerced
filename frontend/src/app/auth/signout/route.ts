@@ -25,12 +25,20 @@ async function createSupabaseServerClient() {
 
 export async function POST() {
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    // Sesión ya inválida — igual respondemos OK
+  }
   return NextResponse.json({ success: true });
 }
 
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    // ignore
+  }
   return NextResponse.redirect(new URL('/', request.url));
 }

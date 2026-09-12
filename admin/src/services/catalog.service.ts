@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
-import type { Product, Category, Brand, Promotion, DashboardOverview } from '@/types';
+import type { Product, Category, Brand, Supplier, Promotion, DashboardOverview } from '@/types';
 
 export const productsService = {
   list: (params?: { search?: string; categoryId?: string; brandId?: string; page?: number }) => {
@@ -20,6 +20,10 @@ export const categoriesService = {
 
 export const brandsService = {
   list: () => apiFetch<Brand[]>('/brands'),
+};
+
+export const suppliersService = {
+  list: (token: string) => apiFetch<Supplier[]>('/suppliers', { token }),
 };
 
 export const promotionsService = {

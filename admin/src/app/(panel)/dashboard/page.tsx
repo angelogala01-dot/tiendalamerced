@@ -35,7 +35,7 @@ export default function AdminDashboardPage() {
       value: stats ? `S/ ${stats.salesToday.toFixed(2)}` : '—',
       icon: ShoppingCart,
       accent: 'primary' as const,
-      href: ADMIN_ROUTES.SALES,
+      href: ADMIN_ROUTES.POS,
     },
     {
       title: 'Ventas del mes',
@@ -247,7 +247,7 @@ export default function AdminDashboardPage() {
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             {isError
               ? 'No se pudieron cargar los indicadores. Verifica que el backend esté en marcha y vuelve a intentar.'
-              : 'Sin datos de ventas todavía. Registra ventas en POS o recibe pedidos web para ver indicadores.'}
+              : 'Sin datos de ventas todavía. Cobra en Caja o recibe pedidos web para ver indicadores.'}
           </CardContent>
         </Card>
       )}

@@ -1,6 +1,8 @@
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../../shared/constants/roles';
+import { IsPeruPhone, toDigitsOrUndefined } from '../../../shared/validators/peru';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -22,7 +24,8 @@ export class CreateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruPhone()
   phone?: string;
 }
 
@@ -34,6 +37,7 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruPhone()
   phone?: string;
 }

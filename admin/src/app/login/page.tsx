@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { clearApiTokenCache } from '@/lib/api-token';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ADMIN_ROUTES, STAFF_ROLES } from '@/constants/routes';
+import { canAccessPath, homeForRole } from '@/lib/rbac';
 import { toast } from 'sonner';
 import { Package, Shield } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
@@ -59,7 +60,9 @@ function AdminLoginForm() {
 
       toast.success('Bienvenido al panel admin');
       clearApiTokenCache();
-      router.push(redirect);
+      const target =
+        redirect && canAccessPath(role, redirect) ? redirect : homeForRole(role);
+      router.push(target);
       router.refresh();
     } catch (err) {
       const message =

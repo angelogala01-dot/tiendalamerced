@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
@@ -8,11 +8,13 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsPeruDocument, toDigitsOrUndefined } from '../../../shared/validators/peru';
 
 export class EmitInvoiceDto {
-  @ApiProperty({ enum: ['boleta', 'factura'] })
+  @ApiPropertyOptional({ enum: ['boleta', 'factura'] })
+  @IsOptional()
   @IsEnum(['boleta', 'factura'])
-  kind: 'boleta' | 'factura';
+  kind?: 'boleta' | 'factura';
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -31,7 +33,8 @@ export class EmitInvoiceDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Transform(toDigitsOrUndefined)
+  @IsPeruDocument()
   document_number?: string;
 
   @ApiPropertyOptional()

@@ -61,9 +61,11 @@ export function CategoryGrid({ categories }: CategoryGridProps) {
                 className="group relative block aspect-[4/5] overflow-hidden rounded-3xl bg-foreground shadow-[0_24px_60px_-28px_oklch(0.2_0.02_40/0.55)]"
               >
                 <Image
-                  src={categoryImage(cat.slug)}
+                  key={cat.image_url || cat.slug}
+                  src={categoryImage(cat.slug, cat.image_url)}
                   alt={getCategoryLabel(cat) || cat.name}
                   fill
+                  unoptimized={Boolean(cat.image_url?.trim())}
                   className="object-cover opacity-80 transition duration-700 group-hover:scale-110 group-hover:opacity-55"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />

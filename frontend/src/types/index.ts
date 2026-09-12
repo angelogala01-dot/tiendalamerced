@@ -1,6 +1,7 @@
 export type UserRole =
   | 'super_admin'
   | 'admin'
+  | 'manager'
   | 'seller'
   | 'warehouse'
   | 'customer';
@@ -31,6 +32,23 @@ export interface Brand {
   logo_url: string | null;
 }
 
+export interface ProductImage {
+  id: string;
+  url: string;
+  is_primary: boolean;
+  storage_path?: string | null;
+}
+
+export interface ProductVariant {
+  id: string;
+  sku?: string | null;
+  size?: string | null;
+  color?: string | null;
+  stock_quantity: number;
+  barcode?: string | null;
+  is_active?: boolean;
+}
+
 export interface Product {
   id: string;
   sku: string;
@@ -45,21 +63,20 @@ export interface Product {
   category?: Category;
   brand?: Brand;
   images?: ProductImage[];
-}
-
-export interface ProductImage {
-  id: string;
-  url: string;
-  is_primary: boolean;
-  storage_path?: string | null;
+  variants?: ProductVariant[];
+  matched_variant?: ProductVariant | null;
 }
 
 export interface CartItem {
   productId: string;
+  variantId?: string;
+  size?: string;
+  color?: string;
   name: string;
   price: number;
   quantity: number;
   image?: string;
+  maxQuantity?: number;
 }
 
 export interface DashboardOverview {

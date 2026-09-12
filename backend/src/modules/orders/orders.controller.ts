@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { OrdersAuth } from '../../common/decorators/staff-auth.decorator';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { User } from '@supabase/supabase-js';
@@ -14,7 +14,7 @@ export class OrdersController {
   constructor(private readonly service: OrdersService) {}
 
   @Get()
-  @StaffAuth()
+  @OrdersAuth()
   findAll(@Query('status') status?: string) {
     return this.service.findAll(status);
   }
@@ -39,7 +39,7 @@ export class OrdersController {
   }
 
   @Get('deliveries')
-  @StaffAuth()
+  @OrdersAuth()
   findDeliveries() {
     return this.service.findDeliveries();
   }
@@ -56,13 +56,13 @@ export class OrdersController {
   }
 
   @Get(':id')
-  @StaffAuth()
+  @OrdersAuth()
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
   }
 
   @Patch(':id/status')
-  @StaffAuth()
+  @OrdersAuth()
   updateStatus(
     @Param('id') id: string,
     @Body() body: { status: string; notes?: string },
@@ -72,7 +72,7 @@ export class OrdersController {
   }
 
   @Post(':id/deliver')
-  @StaffAuth()
+  @OrdersAuth()
   deliver(
     @Param('id') id: string,
     @Body() dto: DeliverOrderDto,

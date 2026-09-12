@@ -43,7 +43,10 @@ export const BAZU_IMAGES = {
   },
 } as const;
 
-export function categoryImage(slug: string) {
+export function categoryImage(slug: string, imageUrl?: string | null) {
+  const custom = imageUrl?.trim();
+  if (custom) return custom;
+
   const aliases: Record<string, keyof typeof BAZU_IMAGES.categories> = {
     footwear: 'calzado',
     shoes: 'calzado',

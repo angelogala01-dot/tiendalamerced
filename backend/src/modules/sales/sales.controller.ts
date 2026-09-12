@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { SalesAuth } from '../../common/decorators/staff-auth.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { User } from '@supabase/supabase-js';
 import { SalesService } from './sales.service';
@@ -8,7 +8,7 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 
 @ApiTags('sales')
 @Controller('sales')
-@StaffAuth()
+@SalesAuth()
 export class SalesController {
   constructor(private readonly service: SalesService) {}
 

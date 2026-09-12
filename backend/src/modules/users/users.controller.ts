@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import { AdminAuth, StaffAuth } from '../../common/decorators/staff-auth.decorator';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { User } from '@supabase/supabase-js';
+import { AdminAuth } from '../../common/decorators/staff-auth.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 
@@ -10,7 +12,7 @@ export class UsersController {
   constructor(private readonly service: UsersService) {}
 
   @Get()
-  @StaffAuth()
+  @AdminAuth()
   findAll() {
     return this.service.findAll();
   }
@@ -41,7 +43,8 @@ export class UsersController {
 
   @Delete(':id')
   @AdminAuth()
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  @ApiBearerAuth()
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.service.remove(id, user.id);
   }
 }

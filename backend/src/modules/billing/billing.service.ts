@@ -69,6 +69,37 @@ export class BillingService {
     return stored ? [stored] : [];
   }
 
+  async rememberPending(input: {
+    uniqueCode: string;
+    kind: VoucherKind;
+    saleId?: string | null;
+    orderId?: string | null;
+    customerId?: string | null;
+    documentType?: string;
+    documentNumber?: string;
+    legalName?: string;
+    total?: number;
+  }) {
+    try {
+      await this.saveInvoice({
+        unique_code: input.uniqueCode,
+        document_kind: input.kind,
+        order_id: input.orderId ?? null,
+        sale_id: input.saleId ?? null,
+        customer_id: input.customerId ?? null,
+        client_document_type: input.documentType ?? (input.kind === 'factura' ? 'RUC' : 'DNI'),
+        client_document_number: (input.documentNumber ?? '').replace(/\D/g, '') || null,
+        client_name: input.legalName?.trim() || 'CLIENTES VARIOS',
+        total: input.total ?? 0,
+        total_taxable: 0,
+        total_igv: 0,
+        status: 'pending',
+      });
+    } catch {
+      return;
+    }
+  }
+
   async emit(dto: EmitInvoiceDto, issuedBy?: string) {
     if (!dto.order_id && !dto.sale_id) {
       throw new BadRequestException('Indica un pedido o una venta');
@@ -81,6 +112,8 @@ export class BillingService {
     const existing = await this.findIssued('order_id', orderId);
     if (existing) return existing;
 
+    const resolved = await this.resolveEmitDto('order_id', orderId, dto);
+
     const { data: order, error } = await this.supabase
       .from('orders')
       .select('*, customer:customers(*), items:order_items(*, product:products(id, name, sku))')
@@ -88,15 +121,26 @@ export class BillingService {
       .single();
     if (error || !order) throw new NotFoundException('Pedido no encontrado');
 
-    const customer = await this.enrichCustomer(dto.kind, this.mergeCustomer(order.customer, dto));
+    const customer = await this.enrichCustomer(
+      resolved.kind,
+      this.mergeCustomer(order.customer, resolved),
+    );
     const lines: BillingLine[] = (order.items ?? []).map(
       (item: {
         quantity: number;
         unit_price: number;
+        size?: string | null;
+        color?: string | null;
         product?: { name?: string; sku?: string };
       }) => ({
         sku: item.product?.sku,
-        description: item.product?.name || 'Producto',
+        description: [
+          item.product?.name || 'Producto',
+          item.size ? `Talla ${item.size}` : null,
+          item.color,
+        ]
+          .filter(Boolean)
+          .join(' '),
         quantity: Number(item.quantity),
         unitPriceWithIgv: Number(item.unit_price),
       }),
@@ -111,7 +155,7 @@ export class BillingService {
     }
 
     return this.generate({
-      kind: dto.kind,
+      kind: resolved.kind,
       uniqueCode: `ORD-${order.id}`,
       customer,
       lines,
@@ -128,6 +172,8 @@ export class BillingService {
     const existing = await this.findIssued('sale_id', saleId);
     if (existing) return existing;
 
+    const resolved = await this.resolveEmitDto('sale_id', saleId, dto);
+
     const { data: sale, error } = await this.supabase
       .from('sales')
       .select('*, customer:customers(*), items:sale_items(*, product:products(id, name, sku))')
@@ -135,22 +181,33 @@ export class BillingService {
       .single();
     if (error || !sale) throw new NotFoundException('Venta no encontrada');
 
-    const customer = await this.enrichCustomer(dto.kind, this.mergeCustomer(sale.customer, dto));
+    const customer = await this.enrichCustomer(
+      resolved.kind,
+      this.mergeCustomer(sale.customer, resolved),
+    );
     const lines: BillingLine[] = (sale.items ?? []).map(
       (item: {
         quantity: number;
         unit_price: number;
+        size?: string | null;
+        color?: string | null;
         product?: { name?: string; sku?: string };
       }) => ({
         sku: item.product?.sku,
-        description: item.product?.name || 'Producto',
+        description: [
+          item.product?.name || 'Producto',
+          item.size ? `Talla ${item.size}` : null,
+          item.color,
+        ]
+          .filter(Boolean)
+          .join(' '),
         quantity: Number(item.quantity),
         unitPriceWithIgv: Number(item.unit_price),
       }),
     );
 
     return this.generate({
-      kind: dto.kind,
+      kind: resolved.kind,
       uniqueCode: `SALE-${sale.id}`,
       customer,
       lines,
@@ -161,6 +218,46 @@ export class BillingService {
       customerId: sale.customer_id,
       issuedBy,
     });
+  }
+
+  private async resolveEmitDto(
+    column: 'order_id' | 'sale_id',
+    id: string,
+    dto: EmitInvoiceDto,
+  ): Promise<EmitInvoiceDto & { kind: VoucherKind }> {
+    const pending = await this.findLatest(column, id);
+    const kind = (dto.kind ?? pending?.document_kind ?? 'boleta') as VoucherKind;
+    if (kind !== 'boleta' && kind !== 'factura') {
+      throw new BadRequestException('Indica si es boleta o factura');
+    }
+
+    const pendingName = String(pending?.client_name ?? '').trim();
+
+    return {
+      ...dto,
+      kind,
+      document_type:
+        dto.document_type ||
+        (pending?.client_document_type as string | undefined) ||
+        (kind === 'factura' ? 'RUC' : 'DNI'),
+      document_number:
+        dto.document_number || (pending?.client_document_number as string | undefined),
+      legal_name:
+        dto.legal_name ||
+        (pendingName && pendingName !== 'CLIENTES VARIOS' ? pendingName : undefined),
+    };
+  }
+
+  private async findLatest(column: 'order_id' | 'sale_id', id: string) {
+    const { data, error } = await this.supabase
+      .from('invoices')
+      .select('*')
+      .eq(column, id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (!error && data?.[0]) return data[0] as InvoiceRow;
+    const prefix = column === 'order_id' ? 'ORD' : 'SALE';
+    return this.readSetting(`nubefact:${prefix}-${id}`);
   }
 
   private async findIssued(column: 'order_id' | 'sale_id', id: string) {

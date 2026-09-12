@@ -10,6 +10,7 @@ export const PUBLIC_ROUTES = {
   CHECKOUT: '/checkout',
   PROFILE: '/perfil',
   RECOVER_PASSWORD: '/recuperar-contrasena',
+  UPDATE_PASSWORD: '/actualizar-contrasena',
   CONTACT: '/contacto',
   PROMOTIONS: '/promociones',
   CATEGORIES: '/categorias',

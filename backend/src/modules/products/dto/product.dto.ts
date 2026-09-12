@@ -1,4 +1,15 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateProductDto {
@@ -30,8 +41,10 @@ export class CreateProductDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_, value) => value != null)
   @IsUUID()
-  supplier_id?: string;
+  supplier_id?: string | null;
 
   @ApiProperty()
   @IsNumber()
@@ -99,4 +112,50 @@ export class UpdateProductImageDto {
   @IsOptional()
   @IsNumber()
   sort_order?: number;
+}
+
+export class UpsertProductVariantDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  stock_quantity?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+}
+
+export class ReplaceProductVariantsDto {
+  @ApiProperty({ type: [UpsertProductVariantDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpsertProductVariantDto)
+  variants: UpsertProductVariantDto[];
 }

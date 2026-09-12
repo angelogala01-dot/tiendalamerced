@@ -75,11 +75,13 @@ function LoginForm({ redirect }: { redirect: string }) {
 }
 
 export default function LoginPage() {
-  const [redirect, setRedirect] = useState(PUBLIC_ROUTES.PROFILE);
+  const [redirect, setRedirect] = useState<string>(PUBLIC_ROUTES.PROFILE);
 
   useEffect(() => {
     const value = new URLSearchParams(window.location.search).get('redirect');
-    if (value) setRedirect(value);
+    if (value?.startsWith('/') && !value.startsWith('//')) {
+      setRedirect(value);
+    }
   }, []);
 
   return (
