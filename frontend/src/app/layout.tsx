@@ -24,7 +24,9 @@ export const metadata: Metadata = {
   },
   description:
     'Multiservicios La Merced PyK S.A.C. — Tienda de calzado, ropa y accesorios.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'http://localhost:3000',
+  ),
 };
 
 export default function RootLayout({

@@ -22,12 +22,14 @@ export function isPeruRuc(value: string) {
   return PERU_RUC_RE.test(digitsOnly(value));
 }
 
-export function isOptionalPeruPhone(value: string) {
+export function isOptionalPeruPhone(value?: string | null) {
+  if (value == null) return true;
   const digits = digitsOnly(value);
   return digits.length === 0 || isPeruPhone(digits);
 }
 
-export function isOptionalPeruDni(value: string) {
+export function isOptionalPeruDni(value?: string | null) {
+  if (value == null) return true;
   const digits = digitsOnly(value);
   return digits.length === 0 || isPeruDni(digits);
 }

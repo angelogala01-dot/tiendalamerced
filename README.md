@@ -51,8 +51,8 @@ No hace falta Docker. El repo [angelogala01-dot/tiendalamerced](https://github.c
 | Servicio Railway | Root Directory | Healthcheck |
 |------------------|----------------|-------------|
 | `api` | `backend` | `/api/v1/health` |
-| `frontend` | `frontend` | `/` |
-| `admin` | `admin` | `/` |
+| `frontend` | `frontend` | `/api/health` |
+| `admin` | `admin` | `/api/health` |
 
 ### Pasos
 

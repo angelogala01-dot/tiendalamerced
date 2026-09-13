@@ -1,14 +1,23 @@
+import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 
 const nextBin = createRequire(import.meta.url).resolve('next/dist/bin/next');
-const port = process.env.PORT || '3000';
+const port = String(process.env.PORT || '3000');
+const host = '0.0.0.0';
+const buildId = join(process.cwd(), '.next', 'BUILD_ID');
 
-console.log(`[frontend] next start 0.0.0.0:${port}`);
+if (!existsSync(buildId)) {
+  console.error('[frontend] Falta .next/BUILD_ID. El build de Next no se generó correctamente.');
+  process.exit(1);
+}
 
-const child = spawn(process.execPath, [nextBin, 'start', '-H', '0.0.0.0', '-p', String(port)], {
+console.log(`[frontend] next start ${host}:${port}`);
+
+const child = spawn(process.execPath, [nextBin, 'start', '-H', host, '-p', port], {
   stdio: 'inherit',
-  env: process.env,
+  env: { ...process.env, PORT: port, HOSTNAME: host },
 });
 
 child.on('exit', (code, signal) => {
