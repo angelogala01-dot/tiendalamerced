@@ -61,7 +61,8 @@ No hace falta Docker. El repo [angelogala01-dot/tiendalamerced](https://github.c
 3. **New → GitHub Repo** otra vez (el mismo repo) para `frontend` y otra para `admin`. Cambia el Root Directory de cada uno.
 4. Copia las variables de `deploy/railway.env.example` en cada servicio.
 5. En frontend y admin, `NEXT_PUBLIC_*` se aplican en el **build**. Si cambias la URL de la API, redespliega esos dos servicios.
-6. En Supabase → Authentication → URL Configuration:
+6. Si el frontend da **502 Application failed to respond**: en **Settings → Networking** edita el dominio y deja el **Target Port vacío** (o igual al `PORT` del deploy log). Añade `HOSTNAME=0.0.0.0`. No definas `PORT` a mano.
+7. En Supabase → Authentication → URL Configuration:
    - Site URL: URL del frontend
    - Redirect URLs: `https://TU-FRONTEND.up.railway.app/**` y `https://TU-ADMIN.up.railway.app/**`
 
